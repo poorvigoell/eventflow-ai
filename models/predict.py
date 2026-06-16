@@ -38,7 +38,11 @@ def predict_event_impact(
     if _model is None:
         return {
             "total_incidents": 0,
-            "phases": {"inflow": 0, "steady": 0, "exodus": 0},
+            "phases": {
+                "inflow": {"count": 0, "peak_hour": "-", "top_type": "-"},
+                "steady": {"count": 0, "peak_hour": "-", "top_type": "-"},
+                "exodus": {"count": 0, "peak_hour": "-", "top_type": "-"},
+            },
             "high_risk_junctions": [],
             "confidence": 0.0
         }
@@ -91,12 +95,16 @@ def predict_event_impact(
 
     confidence = min(0.95, _meta['r2']) if _meta else 0.5
 
+    inflow_hour = (start_dt - pd.Timedelta(hours=1)).strftime('%H:%M')
+    steady_hour = (start_dt + pd.Timedelta(hours=max(1, duration_hours/2))).strftime('%H:%M')
+    exodus_hour = (start_dt + pd.Timedelta(hours=duration_hours)).strftime('%H:%M')
+
     return {
         "total_incidents": total_pred,
         "phases": {
-            "inflow": inflow,
-            "steady": steady,
-            "exodus": exodus,
+            "inflow": {"count": inflow, "peak_hour": inflow_hour, "top_type": "slow_traffic"},
+            "steady": {"count": steady, "peak_hour": steady_hour, "top_type": "illegal_parking"},
+            "exodus": {"count": exodus, "peak_hour": exodus_hour, "top_type": "accident"},
         },
         "high_risk_junctions": high_risk,
         "timeline": timeline,

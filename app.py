@@ -7,6 +7,7 @@ from visualization.shockwave import get_shockwave_layers
 from visualization.timeline import render_timeline
 from visualization.command_center import render_command_center
 from visualization.digital_twin import render_digital_twin
+from models.predict import predict_event_impact
 
 st.set_page_config(
     page_title="EventFlow AI - Command Center",
@@ -94,38 +95,40 @@ st.sidebar.markdown('<div class="logo-text">EventFlow AI</div>', unsafe_allow_ht
 st.sidebar.markdown('<div class="logo-sub">City-Scale Traffic Simulator</div>', unsafe_allow_html=True)
 
 st.sidebar.markdown("### 🎛️ Event Settings")
-event_type = st.sidebar.selectbox("Event Category", ["🏟️ Cricket Match", "🚨 VIP Movement", "🎤 Public Concert"])
+event_type_ui = st.sidebar.selectbox("Event Category", ["🏟️ Cricket Match", "🚨 VIP Movement", "🎤 Public Concert"])
 venue = st.sidebar.selectbox("Target Venue", ["M Chinnaswamy Stadium", "Kanteerava Stadium"])
 
+event_type_map = {
+    "🏟️ Cricket Match": "sports",
+    "🚨 VIP Movement": "vip_movement",
+    "🎤 Public Concert": "public_event"
+}
+
 venue_coords = {
-    "M Chinnaswamy Stadium": {"lat": 12.9788, "lng": 77.5996},
-    "Kanteerava Stadium": {"lat": 12.9694, "lng": 77.5938}
+    "M Chinnaswamy Stadium": {"lat": 12.9788, "lng": 77.5996, "zone": "Central"},
+    "Kanteerava Stadium": {"lat": 12.9694, "lng": 77.5938, "zone": "Central"}
 }
 
 lat = venue_coords[venue]["lat"]
 lng = venue_coords[venue]["lng"]
+zone = venue_coords[venue]["zone"]
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌩️ Environment Variables")
 weather_rain = st.sidebar.toggle("Heavy Rain Forecast", value=False)
 emergency_mode = st.sidebar.toggle("🚨 Emergency Routing Mode", value=False)
 
-prediction_data = {
-    "total_incidents": 14,
-    "phases": {
-        "inflow":  {"count": 5, "peak_hour": "17:00", "top_type": "slow_traffic"},
-        "steady":  {"count": 3, "peak_hour": "20:00", "top_type": "illegal_parking"},
-        "exodus":  {"count": 6, "peak_hour": "23:00", "top_type": "accident"}
-    },
-    "high_risk_junctions": [
-        {"name": "Trinity Circle", "lat": 12.972, "lng": 77.616, "risk_score": 0.85},
-        {"name": "MG Road Junction", "lat": 12.975, "lng": 77.605, "risk_score": 0.72},
-        {"name": "Richmond Circle", "lat": 12.964, "lng": 77.597, "risk_score": 0.68},
-        {"name": "Residency Road", "lat": 12.971, "lng": 77.600, "risk_score": 0.65},
-        {"name": "St. Marks Road", "lat": 12.973, "lng": 77.602, "risk_score": 0.61}
-    ],
-    "confidence": 0.78
-}
+prediction_data = predict_event_impact(
+    event_type=event_type_map[event_type_ui],
+    latitude=lat,
+    longitude=lng,
+    zone=zone,
+    start_time="2024-03-15 18:00:00",  # Defaulting for now
+    duration_hours=4.0
+)
+
+# Extract timeline before passing prediction_data to visualizations that don't expect it
+raw_timeline = prediction_data.pop("timeline", [])
 
 if weather_rain:
     prediction_data['total_incidents'] = int(prediction_data['total_incidents'] * 1.3)
@@ -149,9 +152,9 @@ critical_roads = get_critical_roads_cached(G, lat, lng) if G else None
 emergency_routes = get_emergency_routes_cached(G, lat, lng) if emergency_mode and G else None
 
 timeline_data = {
-    "hours": ["16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00", "00:00"],
-    "counts": [1, 5, 2, 1, 3, 1, 2, 6, 1],
-    "phases": ["inflow", "inflow", "inflow", "steady", "steady", "steady", "exodus", "exodus", "exodus"]
+    "hours": [item["time"] for item in raw_timeline],
+    "counts": [item["count"] for item in raw_timeline],
+    "phases": [item["phase"] for item in raw_timeline]
 }
 
 st.sidebar.markdown("---")
