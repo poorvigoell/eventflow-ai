@@ -89,3 +89,84 @@ def get_major_roads(G, num_roads=10):
                 if len(road_dict) >= num_roads:
                     break
     return road_dict
+
+def get_critical_roads(G, lat, lng, radius=1000):
+    """
+    Day 5: Cascading Failure Detector.
+    Finds critical roads around the venue using edge betweenness centrality.
+    """
+    try:
+        center_node = ox.distance.nearest_nodes(G, X=lng, Y=lat)
+        # Create a small subgraph for fast computation (within ~1.5km walking distance)
+        subgraph = nx.ego_graph(G, center_node, radius=radius, distance='length')
+        
+        # Calculate edge betweenness
+        centrality = nx.edge_betweenness_centrality(subgraph, weight='travel_time')
+        
+        # Sort edges by centrality
+        sorted_edges = sorted(centrality.items(), key=lambda x: x[1], reverse=True)
+        
+        critical_paths = []
+        # Get top critical roads
+        for (u, v, k), score in sorted_edges:
+            if 'geometry' in subgraph[u][v][k]:
+                coords = list(subgraph[u][v][k]['geometry'].coords)
+            else:
+                u_data = subgraph.nodes[u]
+                v_data = subgraph.nodes[v]
+                coords = [(u_data['x'], u_data['y']), (v_data['x'], v_data['y'])]
+            
+            critical_paths.append({
+                "path": coords,
+                "score": score
+            })
+            if len(critical_paths) >= 5:
+                break
+        return critical_paths
+    except Exception as e:
+        print(f"Error calculating critical roads: {e}")
+        return []
+
+def get_emergency_routes(G, lat, lng):
+    """
+    Day 6: Emergency Routing.
+    Finds routes to mock hospitals.
+    """
+    try:
+        center_node = ox.distance.nearest_nodes(G, X=lng, Y=lat)
+        nodes = list(G.nodes())
+        
+        routes = []
+        # Mock 2 hospitals by picking nodes from the graph
+        random.seed(101)  # Fixed seed for consistent routes
+        for _ in range(2):
+            # Try to find a target node that is reasonably far
+            target = random.choice(nodes)
+            try:
+                # Find shortest path
+                path_nodes = nx.shortest_path(G, center_node, target, weight='travel_time')
+                
+                # Only keep paths that are actually long enough to be interesting
+                if len(path_nodes) < 10:
+                    continue
+                    
+                path_coords = []
+                for n in path_nodes:
+                    node_data = G.nodes[n]
+                    path_coords.append([node_data['x'], node_data['y']])
+                
+                routes.append({
+                    "path": path_coords,
+                    "name": "Hospital Route"
+                })
+                
+                if len(routes) >= 2:
+                    break
+            except nx.NetworkXNoPath:
+                continue
+                
+        return routes
+    except Exception as e:
+        print(f"Error calculating emergency routes: {e}")
+        return []
+

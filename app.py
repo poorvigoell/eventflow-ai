@@ -3,6 +3,10 @@ import osmnx as ox
 import pydeck as pdk
 import os
 import graph.simulator as sim
+from visualization.shockwave import get_shockwave_layers
+from visualization.timeline import render_timeline
+from visualization.command_center import render_command_center
+from visualization.digital_twin import render_digital_twin
 
 st.set_page_config(
     page_title="EventFlow AI - Command Center",
@@ -11,7 +15,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Premium Custom CSS
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
@@ -21,16 +24,16 @@ st.markdown("""
     }
     
     .stApp {
-        background: radial-gradient(circle at top left, #12141d, #050505);
+        background-color: var(--background-color);
     }
     
     section[data-testid="stSidebar"] {
-        background-color: rgba(18, 20, 29, 0.95) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        background-color: var(--secondary-background-color) !important;
+        border-right: 1px solid rgba(128, 128, 128, 0.1);
     }
 
     .logo-text {
-        background: -webkit-linear-gradient(45deg, #FF4B2B, #FF416C);
+        background: -webkit-linear-gradient(45deg, #00d2ff, #3a7bd5);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         font-weight: 800;
@@ -40,27 +43,28 @@ st.markdown("""
         line-height: 1.1;
     }
     .logo-sub {
-        color: #a0aabf;
+        color: var(--text-color);
+        opacity: 0.6;
         font-size: 0.95rem;
         margin-bottom: 25px;
         font-weight: 300;
     }
     
     div[data-testid="metric-container"] {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.15);
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
-        backdrop-filter: blur(4px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
     }
     
     div[data-testid="stMetricValue"] {
-        color: #ffffff;
+        color: var(--text-color);
         font-weight: 600;
     }
     div[data-testid="stMetricLabel"] {
-        color: #a0aabf;
+        color: var(--text-color);
+        opacity: 0.8;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -86,9 +90,6 @@ def get_road_options(_G):
 
 road_options = get_road_options(G)
 
-# -----------------
-# SIDEBAR (Top Left)
-# -----------------
 st.sidebar.markdown('<div class="logo-text">EventFlow AI</div>', unsafe_allow_html=True)
 st.sidebar.markdown('<div class="logo-sub">City-Scale Traffic Simulator</div>', unsafe_allow_html=True)
 
@@ -96,78 +97,113 @@ st.sidebar.markdown("### 🎛️ Event Settings")
 event_type = st.sidebar.selectbox("Event Category", ["🏟️ Cricket Match", "🚨 VIP Movement", "🎤 Public Concert"])
 venue = st.sidebar.selectbox("Target Venue", ["M Chinnaswamy Stadium", "Kanteerava Stadium"])
 
+venue_coords = {
+    "M Chinnaswamy Stadium": {"lat": 12.9788, "lng": 77.5996},
+    "Kanteerava Stadium": {"lat": 12.9694, "lng": 77.5938}
+}
+
+lat = venue_coords[venue]["lat"]
+lng = venue_coords[venue]["lng"]
+
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 🚧 What-If Simulator")
-st.sidebar.caption("Powered by NetworkX Dijkstra Algorithm")
-road_name = st.sidebar.selectbox("Target Edge for Closure", list(road_options.keys()))
+st.sidebar.markdown("### 🌩️ Environment Variables")
+weather_rain = st.sidebar.toggle("Heavy Rain Forecast", value=False)
+emergency_mode = st.sidebar.toggle("🚨 Emergency Routing Mode", value=False)
 
-simulate_btn = st.sidebar.button("Execute Simulation", type="primary", use_container_width=True)
+prediction_data = {
+    "total_incidents": 14,
+    "phases": {
+        "inflow":  {"count": 5, "peak_hour": "17:00", "top_type": "slow_traffic"},
+        "steady":  {"count": 3, "peak_hour": "20:00", "top_type": "illegal_parking"},
+        "exodus":  {"count": 6, "peak_hour": "23:00", "top_type": "accident"}
+    },
+    "high_risk_junctions": [
+        {"name": "Trinity Circle", "lat": 12.972, "lng": 77.616, "risk_score": 0.85},
+        {"name": "MG Road Junction", "lat": 12.975, "lng": 77.605, "risk_score": 0.72},
+        {"name": "Richmond Circle", "lat": 12.964, "lng": 77.597, "risk_score": 0.68},
+        {"name": "Residency Road", "lat": 12.971, "lng": 77.600, "risk_score": 0.65},
+        {"name": "St. Marks Road", "lat": 12.973, "lng": 77.602, "risk_score": 0.61}
+    ],
+    "confidence": 0.78
+}
 
-if simulate_btn and road_name != "None" and G is not None:
-    with st.spinner(f"Simulating closure of {road_name} across city network..."):
-        edge_to_close = road_options[road_name]
-        results = sim.simulate_road_closure(G, edge_to_close)
-        
-        st.sidebar.markdown("#### Simulation Results")
-        if "error" in results:
-            st.sidebar.error(results["error"])
-        else:
-            pct = results["change_pct"]
-            st.sidebar.metric(label="Network Travel Time Change", value=f"{pct:+.1f}%")
-            st.sidebar.write(f"Impacted Routes: **{results['impacted_routes']} / {results['total_routes']}**")
-            
-            if "DO NOT CLOSE" in results["recommendation"]:
-                st.sidebar.error(results["recommendation"])
-            else:
-                st.sidebar.success(results["recommendation"])
-elif simulate_btn and road_name == "None":
-    st.sidebar.warning("Please select a road to simulate.")
+if weather_rain:
+    prediction_data['total_incidents'] = int(prediction_data['total_incidents'] * 1.3)
+    prediction_data['confidence'] = 0.65
+
+economic_impact = {
+    "cost_lakhs": 24.5 if not weather_rain else 32.1,
+    "person_hours": "14,500" if not weather_rain else "18,200",
+    "surcharge_lakhs": 5.0 if not weather_rain else 6.5
+}
+
+@st.cache_data
+def get_critical_roads_cached(_G, lat, lng):
+    return sim.get_critical_roads(_G, lat, lng)
+
+@st.cache_data
+def get_emergency_routes_cached(_G, lat, lng):
+    return sim.get_emergency_routes(_G, lat, lng)
+
+critical_roads = get_critical_roads_cached(G, lat, lng) if G else None
+emergency_routes = get_emergency_routes_cached(G, lat, lng) if emergency_mode and G else None
+
+timeline_data = {
+    "hours": ["16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00", "00:00"],
+    "counts": [1, 5, 2, 1, 3, 1, 2, 6, 1],
+    "phases": ["inflow", "inflow", "inflow", "steady", "steady", "steady", "exodus", "exodus", "exodus"]
+}
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🗺️ Map Settings")
 view_mode = st.sidebar.radio("Map View Mode", ["3D Tilted View", "2D Top-Down View"])
 
+tab_live, tab_twin = st.tabs(["🚦 Live Command Center", "⏳ Digital Twin (Replay)"])
 
-# -----------------
-# MAIN CONTENT
-# -----------------
-st.markdown("### 📊 Live Impact Metrics")
-m1, m2, m3, m4 = st.columns(4)
-m1.metric(label="Predicted Incident Surge", value="+14", delta="Critical", delta_color="inverse")
-m2.metric(label="Capacity Loss (Radius)", value="38%", delta="-12% from baseline", delta_color="inverse")
-m3.metric(label="Recommended Dispatch", value="12 Units", delta="Traffic Police")
-m4.metric(label="Overall Risk Score", value="84/100", delta="High", delta_color="inverse")
+with tab_live:
+    col_main, col_cmd = st.columns([2.2, 1])
 
-st.markdown("<br>", unsafe_allow_html=True)
+    with col_main:
+        st.markdown("### 📊 Live Impact Metrics")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric(label="Predicted Incident Surge", value=f"+{prediction_data['total_incidents']}", delta="Critical", delta_color="inverse")
+        m2.metric(label="Capacity Loss (Radius)", value="38%", delta="-12% from baseline", delta_color="inverse")
+        m3.metric(label="Recommended Dispatch", value="12 Units", delta="Traffic Police")
+        m4.metric(label="Overall Risk Score", value=f"{int(prediction_data['confidence']*100)}/100", delta="High", delta_color="inverse")
 
-st.markdown("### 🌐 Live Road Network")
+        st.markdown("<br>", unsafe_allow_html=True)
 
-pitch = 50 if "3D" in view_mode else 0
-bearing = -15 if "3D" in view_mode else 0
+        st.markdown("### 🌐 Live Road Network")
 
-view_state = pdk.ViewState(
-    latitude=12.9788,
-    longitude=77.5996,
-    zoom=14.5,
-    pitch=pitch,
-    bearing=bearing
-)
+        pitch = 50 if "3D" in view_mode else 0
+        bearing = -15 if "3D" in view_mode else 0
 
-stadium_layer = pdk.Layer(
-    "ScatterplotLayer",
-    data=[{"position": [77.5996, 12.9788], "name": "M Chinnaswamy Stadium"}],
-    get_position="position",
-    get_color=[255, 65, 108, 200], # Pink glow
-    get_radius=120,
-    pickable=True,
-)
+        view_state = pdk.ViewState(
+            latitude=lat,
+            longitude=lng,
+            zoom=14.5,
+            pitch=pitch,
+            bearing=bearing
+        )
 
-st.pydeck_chart(pdk.Deck(
-    map_style="dark",
-    initial_view_state=view_state,
-    layers=[stadium_layer],
-    tooltip={"text": "{name}"}
-))
+        layers = get_shockwave_layers(lat, lng, prediction_data, critical_roads, emergency_routes)
 
-if G is None:
-    st.error("Graph data not found. Please run `python graph/build_network.py`.")
+        st.pydeck_chart(pdk.Deck(
+            map_style=None,
+            initial_view_state=view_state,
+            layers=layers,
+            tooltip={"text": "{name}"}
+        ))
+        
+        if G is None:
+            st.error("Graph data not found. Please run `python graph/build_network.py`.")
+            
+        st.markdown("---")
+        render_timeline(timeline_data)
+
+    with col_cmd:
+        render_command_center(prediction_data, G, road_options, economic_impact, critical_roads)
+
+with tab_twin:
+    render_digital_twin("EVT-4402", lat, lng)
+ 
