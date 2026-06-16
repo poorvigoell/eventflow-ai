@@ -86,21 +86,8 @@ def predict_event_impact(
     steady = max(0, int(round(total_pred * steady_ratio)))
     exodus = total_pred - inflow - steady
 
-    high_risk = []
-    if total_pred > 3:
-        offsets = [
-            (0.005, 0.003, "Junction A"),
-            (-0.003, 0.005, "Junction B"),
-            (0.002, -0.004, "Junction C"),
-        ]
-        for dlat, dlng, name in offsets:
-            risk_score = min(1.0, total_pred / 20.0 + np.random.uniform(0.1, 0.3))
-            high_risk.append({
-                "name": name,
-                "lat": latitude + dlat,
-                "lng": longitude + dlng,
-                "risk_score": round(risk_score, 2)
-            })
+    high_risk = get_high_risk_junctions(latitude, longitude, total_pred)
+    timeline = get_phase_timeline(total_pred, start_time, duration_hours)
 
     confidence = min(0.95, _meta['r2']) if _meta else 0.5
 
@@ -112,8 +99,70 @@ def predict_event_impact(
             "exodus": exodus,
         },
         "high_risk_junctions": high_risk,
+        "timeline": timeline,
         "confidence": round(confidence, 2)
     }
+
+def get_high_risk_junctions(latitude: float, longitude: float, total_incidents: int) -> list:
+    """Returns top 5 high risk junctions based on event location and predicted volume"""
+    if total_incidents < 3:
+        return []
+        
+    np.random.seed(int(latitude * 1000)) # Stable randomness
+    
+    # Simulate finding nearby OSM junctions
+    offsets = [
+        (0.005, 0.003, "Main Gate Junction"),
+        (-0.003, 0.005, "North Exit Road"),
+        (0.002, -0.004, "East Corridor"),
+        (-0.004, -0.002, "South Bypass"),
+        (0.006, -0.001, "Outer Ring Connect")
+    ]
+    
+    high_risk = []
+    for i, (dlat, dlng, name) in enumerate(offsets):
+        if i >= 5: break
+        risk_score = min(1.0, (total_incidents / 20.0) + np.random.uniform(0.05, 0.2))
+        high_risk.append({
+            "name": name,
+            "lat": latitude + dlat,
+            "lng": longitude + dlng,
+            "risk_score": round(risk_score, 2)
+        })
+        
+    # Sort by highest risk first
+    high_risk = sorted(high_risk, key=lambda x: x['risk_score'], reverse=True)
+    return high_risk
+
+def get_phase_timeline(total_incidents: int, start_time: str, duration_hours: float) -> list:
+    """Returns hourly incident counts for plotting timelines"""
+    if total_incidents == 0:
+        return []
+        
+    start_dt = pd.to_datetime(start_time)
+    start_hour = start_dt.replace(minute=0, second=0, microsecond=0)
+    
+    timeline = []
+    
+    # 2 hours before (Inflow)
+    timeline.append({"time": (start_hour - pd.Timedelta(hours=2)).strftime('%H:%M'), "count": max(0, int(total_incidents * 0.1)), "phase": "inflow"})
+    timeline.append({"time": (start_hour - pd.Timedelta(hours=1)).strftime('%H:%M'), "count": max(0, int(total_incidents * 0.2)), "phase": "inflow"})
+    
+    # During (Steady)
+    steady_count_per_hour = max(0, int((total_incidents * 0.45) / max(1, duration_hours)))
+    for h in range(int(max(1, duration_hours))):
+        timeline.append({
+            "time": (start_hour + pd.Timedelta(hours=h)).strftime('%H:%M'), 
+            "count": steady_count_per_hour, 
+            "phase": "steady"
+        })
+        
+    # 2 hours after (Exodus)
+    end_hour = start_hour + pd.Timedelta(hours=duration_hours)
+    timeline.append({"time": (end_hour).strftime('%H:%M'), "count": max(0, int(total_incidents * 0.15)), "phase": "exodus"})
+    timeline.append({"time": (end_hour + pd.Timedelta(hours=1)).strftime('%H:%M'), "count": max(0, int(total_incidents * 0.1)), "phase": "exodus"})
+    
+    return timeline
 
 def get_historical_replay(event_id: str) -> dict:
     return {
