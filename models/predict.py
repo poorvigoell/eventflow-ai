@@ -25,6 +25,39 @@ def _load_model():
     _model = joblib.load(model_path)
     _meta = joblib.load(meta_path)
 
+def generate_unplanned_events(latitude: float, longitude: float, radius_km: float = 2.0) -> list:
+    """
+    Generates dynamic unplanned events around a given location (e.g. protest, construction, weather hazard)
+    with randomized but stable seeding based on coordinates.
+    """
+    # Create stable seed from coordinates
+    seed = int(abs(latitude * 10000 + longitude * 10000)) % 1000000
+    rng = np.random.default_rng(seed)
+    
+    types = ["protest", "construction", "waterlogging", "accident"]
+    severities = ["Low", "Medium", "High"]
+    
+    num_events = rng.integers(1, 4)
+    unplanned_events = []
+    
+    for i in range(num_events):
+        event_type = rng.choice(types)
+        severity = rng.choice(severities)
+        # Random offset roughly within radius_km (1 degree lat ~= 111km)
+        lat_offset = rng.uniform(-0.009 * radius_km, 0.009 * radius_km)
+        lng_offset = rng.uniform(-0.009 * radius_km, 0.009 * radius_km)
+        
+        unplanned_events.append({
+            "id": f"UNPLANNED_{seed}_{i}",
+            "event_type": event_type,
+            "severity": severity,
+            "latitude": latitude + lat_offset,
+            "longitude": longitude + lng_offset,
+            "description": f"Unplanned {event_type} (Severity: {severity}) detected nearby."
+        })
+        
+    return unplanned_events
+
 def predict_event_impact(
     event_type: str,
     latitude: float,
@@ -54,7 +87,7 @@ def predict_event_impact(
     cause_map = {
         'construction': 0, 'others': 1, 'procession': 2, 'protest': 3,
         'public_event': 4, 'tree_fall': 5, 'vehicle_breakdown': 6, 'vip_movement': 7,
-        'sports': 4, 'religious': 2
+        'sports': 4, 'religious': 2, 'waterlogging': 5, 'accident': 6
     }
     cause_code = cause_map.get(event_type, 0)
 
@@ -68,6 +101,11 @@ def predict_event_impact(
 
     priority_code = 1
 
+    is_weekend = 1 if day_of_week in [5, 6] else 0
+    is_rush_hour = 1 if hour in [8, 9, 10, 17, 18, 19, 20] else 0
+    hour_sin = np.sin(2 * np.pi * hour / 24.0)
+    hour_cos = np.cos(2 * np.pi * hour / 24.0)
+
     features = pd.DataFrame([{
         'event_cause': cause_code,
         'zone': zone_code,
@@ -77,6 +115,10 @@ def predict_event_impact(
         'priority': priority_code,
         'latitude': latitude,
         'longitude': longitude,
+        'is_weekend': is_weekend,
+        'is_rush_hour': is_rush_hour,
+        'hour_sin': hour_sin,
+        'hour_cos': hour_cos,
     }])
 
     total_pred = max(0, int(round(_model.predict(features)[0])))
@@ -313,6 +355,94 @@ def get_economic_impact(
             f"{person_hours_lost:.0f} person-hours lost, "
             f"₹{total_cost_inr:,} total economic impact"
         )
+    }
+
+def get_tactical_recommendation(
+    total_incidents: int,
+    high_risk_junctions: list,
+    duration_hours: float
+) -> dict:
+    """
+    Core PS deliverable: Compute manpower deployment, road barricading,
+    and diversion routing based on predicted event impact.
+    """
+    num_junctions = len(high_risk_junctions)
+    traffic_police = max(4, num_junctions * 4 + (total_incidents // 5) * 2)
+    patrol_vehicles = max(1, num_junctions // 3 + 1)
+    ambulances = max(1, total_incidents // 10) if total_incidents > 0 else 0
+    tow_trucks = max(0, total_incidents // 15)
+    barricade_teams = max(1, num_junctions)
+
+    barricade_roads = []
+    for j in high_risk_junctions[:3]:
+        barricade_roads.append({
+            "road": j["name"],
+            "reason": f"High risk junction ({j['risk_score']*100:.0f}% score)",
+            "timing": f"{max(1, int(duration_hours / 2))}hr before event"
+        })
+
+    diversion_templates = [
+        {"from": "MG Road", "via": "Residency Road", "to": "Richmond Circle", "added_time": "+4 min"},
+        {"from": "Cubbon Road", "via": "Kasturba Road", "to": "Hudson Circle", "added_time": "+3 min"},
+        {"from": "JC Road", "via": "KR Road", "to": "Town Hall", "added_time": "+5 min"},
+        {"from": "Race Course Road", "via": "Seshadri Road", "to": "Majestic", "added_time": "+6 min"},
+        {"from": "Infantry Road", "via": "Brigade Road", "to": "Commercial St", "added_time": "+3 min"},
+    ]
+    diversion_plan = diversion_templates[:min(len(barricade_roads) + 1, len(diversion_templates))]
+
+    if total_incidents > 15:
+        timeline = f"Deploy {int(duration_hours)}hr before event start"
+    elif total_incidents > 5:
+        timeline = f"Deploy {max(1, int(duration_hours / 2))}hr before event start"
+    else:
+        timeline = "Deploy 45 min before event start"
+
+    return {
+        "manpower": {
+            "traffic_police": traffic_police,
+            "patrol_vehicles": patrol_vehicles,
+            "ambulances": ambulances,
+            "tow_trucks": tow_trucks,
+            "barricade_teams": barricade_teams,
+        },
+        "barricade_roads": barricade_roads,
+        "diversion_plan": diversion_plan,
+        "deployment_timeline": timeline,
+    }
+
+def get_dispatch_recommendation(total_incidents: int, risk_score: float) -> dict:
+    """
+    Returns structured dispatch resource counts scaled to the event.
+    """
+    base = max(2, total_incidents)
+    multiplier = 1.0 + risk_score
+
+    traffic_police = int(base * multiplier * 0.5)
+    mounted_patrol = max(0, int(base * multiplier * 0.1))
+    ambulances = max(1, int(base * multiplier * 0.15)) if total_incidents > 0 else 0
+    tow_trucks = max(0, int(base * multiplier * 0.1))
+    control_rooms = 1 if total_incidents < 10 else 2
+
+    total_units = traffic_police + mounted_patrol + ambulances + tow_trucks + control_rooms
+
+    if total_incidents > 15 or risk_score > 0.8:
+        alert_level = "RED"
+    elif total_incidents > 5 or risk_score > 0.6:
+        alert_level = "AMBER"
+    else:
+        alert_level = "GREEN"
+
+    return {
+        "total_units": total_units,
+        "breakdown": {
+            "traffic_police": traffic_police,
+            "mounted_patrol": mounted_patrol,
+            "ambulances": ambulances,
+            "tow_trucks": tow_trucks,
+            "control_rooms": control_rooms,
+        },
+        "alert_level": alert_level,
+        "summary": f"{total_units} units ({alert_level} alert) — {traffic_police} traffic police, {ambulances} ambulances"
     }
 
 

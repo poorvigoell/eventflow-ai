@@ -5,10 +5,22 @@ import os
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from models.predict import predict_event_impact, get_high_risk_junctions, get_phase_timeline
+from models.predict import predict_event_impact, get_high_risk_junctions, get_phase_timeline, generate_unplanned_events, get_tactical_recommendation, get_dispatch_recommendation
 from data.correlator import correlate_events
 
 class TestMLBackend(unittest.TestCase):
+
+    def test_generate_unplanned_events(self):
+        events = generate_unplanned_events(12.9789, 77.5998, radius_km=2.0)
+        self.assertGreaterEqual(len(events), 1)
+        self.assertLessEqual(len(events), 3)
+        for event in events:
+            self.assertIn("id", event)
+            self.assertIn("event_type", event)
+            self.assertIn("severity", event)
+            self.assertIn("latitude", event)
+            self.assertIn("longitude", event)
+            self.assertIn("description", event)
 
     def test_predict_event_impact_edge_cases(self):
         # Test unknown zone
@@ -91,6 +103,39 @@ class TestMLBackend(unittest.TestCase):
         row = training_df.iloc[0]
         self.assertEqual(row['total_incidents'], 1)
         self.assertEqual(row['steady_incidents'], 1)
+
+    def test_get_emergency_routes(self):
+        import osmnx as ox
+        import networkx as nx
+        # Create a small grid graph for fast deterministic test
+        grid = nx.grid_2d_graph(5, 5)
+        G = nx.MultiDiGraph()
+        for node in grid.nodes():
+            G.add_node(node, x=float(node[0]), y=float(node[1]))
+        for u, v in grid.edges():
+            G.add_edge(u, v, travel_time=1.0, length=100.0)
+            G.add_edge(v, u, travel_time=1.0, length=100.0)
+
+        from graph.simulator import get_emergency_routes
+        routes = get_emergency_routes(G, lat=2.0, lng=2.0, blockade_edges=[((2, 2), (2, 3))])
+        self.assertGreaterEqual(len(routes), 1)
+        self.assertIn("primary_path", routes[0])
+        self.assertIn("detour_path", routes[0])
+
+    def test_recommendations(self):
+        # Test tactical recommendation logic
+        junctions = [{"name": "Junction A", "risk_score": 0.85, "lat": 12.97, "lng": 77.60}]
+        tactical = get_tactical_recommendation(total_incidents=10, high_risk_junctions=junctions, duration_hours=3.0)
+        self.assertIn("manpower", tactical)
+        self.assertIn("barricade_roads", tactical)
+        self.assertIn("diversion_plan", tactical)
+        self.assertGreater(tactical["manpower"]["traffic_police"], 0)
+        
+        # Test dispatch recommendation logic
+        dispatch = get_dispatch_recommendation(total_incidents=12, risk_score=0.7)
+        self.assertIn("total_units", dispatch)
+        self.assertIn("alert_level", dispatch)
+        self.assertEqual(dispatch["alert_level"], "AMBER")
 
 if __name__ == '__main__':
     unittest.main()

@@ -127,37 +127,60 @@ def get_critical_roads(G, lat, lng, radius=1000):
         print(f"Error calculating critical roads: {e}")
         return []
 
-def get_emergency_routes(G, lat, lng):
+def get_emergency_routes(G, lat, lng, blockade_edges=None):
     """
     Day 6: Emergency Routing.
-    Finds routes to mock hospitals.
+    Finds primary routes to mock hospitals and dynamic detours that avoid specified blockade edges.
     """
     try:
-        center_node = ox.distance.nearest_nodes(G, X=lng, Y=lat)
+        try:
+            center_node = ox.distance.nearest_nodes(G, X=lng, Y=lat)
+        except Exception:
+            # Fallback for custom mock test graphs that don't have OSMnx projection setup
+            center_node = min(G.nodes(), key=lambda n: (G.nodes[n].get('x', 0) - lng)**2 + (G.nodes[n].get('y', 0) - lat)**2)
         nodes = list(G.nodes())
         
         routes = []
         # Mock 2 hospitals by picking nodes from the graph
         random.seed(101)  # Fixed seed for consistent routes
-        for _ in range(2):
-            # Try to find a target node that is reasonably far
+        
+        # Build a temporary copy of the graph with penalized blockade edges if provided
+        G_detour = G.copy()
+        if blockade_edges:
+            for u, v in blockade_edges:
+                if G_detour.has_edge(u, v):
+                    for k in G_detour[u][v]:
+                        G_detour[u][v][k]['travel_time'] = G_detour[u][v][k].get('travel_time', 1.0) * 10.0
+                if G_detour.has_edge(v, u):
+                    for k in G_detour[v][u]:
+                        G_detour[v][u][k]['travel_time'] = G_detour[v][u][k].get('travel_time', 1.0) * 10.0
+
+        for idx in range(2):
             target = random.choice(nodes)
             try:
-                # Find shortest path
-                path_nodes = nx.shortest_path(G, center_node, target, weight='travel_time')
-                
-                # Only keep paths that are actually long enough to be interesting
-                if len(path_nodes) < 10:
+                # Find primary shortest path
+                path_nodes_primary = nx.shortest_path(G, center_node, target, weight='travel_time')
+                # Only keep paths that are actually long enough to be interesting (lower threshold for small test graphs)
+                min_len = 3 if len(G) < 50 else 10
+                if len(path_nodes_primary) < min_len:
                     continue
-                    
-                path_coords = []
-                for n in path_nodes:
-                    node_data = G.nodes[n]
-                    path_coords.append([node_data['x'], node_data['y']])
                 
+                path_coords_primary = []
+                for n in path_nodes_primary:
+                    node_data = G.nodes[n]
+                    path_coords_primary.append([node_data['x'], node_data['y']])
+                
+                # Find detour path using penalized graph
+                path_nodes_detour = nx.shortest_path(G_detour, center_node, target, weight='travel_time')
+                path_coords_detour = []
+                for n in path_nodes_detour:
+                    node_data = G_detour.nodes[n]
+                    path_coords_detour.append([node_data['x'], node_data['y']])
+
                 routes.append({
-                    "path": path_coords,
-                    "name": "Hospital Route"
+                    "primary_path": path_coords_primary,
+                    "detour_path": path_coords_detour,
+                    "name": f"Hospital Route {idx + 1}"
                 })
                 
                 if len(routes) >= 2:

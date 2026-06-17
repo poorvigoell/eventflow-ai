@@ -17,7 +17,10 @@ except Exception:
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-FEATURE_COLS = ['event_cause', 'zone', 'hour', 'day_of_week', 'duration_hours', 'priority', 'latitude', 'longitude']
+FEATURE_COLS = [
+    'event_cause', 'zone', 'hour', 'day_of_week', 'duration_hours', 'priority', 
+    'latitude', 'longitude', 'is_weekend', 'is_rush_hour', 'hour_sin', 'hour_cos'
+]
 TARGET_COL = 'total_incidents'
 
 def build_features(df):
@@ -25,6 +28,16 @@ def build_features(df):
     df['event_cause'] = df['event_cause'].astype('category').cat.codes
     df['zone'] = df['zone'].astype('category').cat.codes
     df['priority'] = df['priority'].map({'Low': 0, 'High': 1}).fillna(0).astype(int)
+    
+    # Feature Engineering
+    # 1. Weekend vs Weekday weight
+    df['is_weekend'] = df['day_of_week'].isin([5, 6]).astype(int)
+    # 2. Rush hour indicator (Office hours / Evening peaks)
+    df['is_rush_hour'] = df['hour'].isin([8, 9, 10, 17, 18, 19, 20]).astype(int)
+    # 3. Time of day representation via sin/cos components
+    df['hour_sin'] = np.sin(2 * np.pi * df['hour'] / 24.0)
+    df['hour_cos'] = np.cos(2 * np.pi * df['hour'] / 24.0)
+    
     return df
 
 def train_model(training_data_path=None):
