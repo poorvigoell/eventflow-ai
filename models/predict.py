@@ -6,24 +6,18 @@ import numpy as np
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-_model = None
-_meta = None
-
 def _load_model():
-    global _model, _meta
-    if _model is not None:
-        return
-
-    saved_dir = os.path.join(os.path.dirname(__file__), 'saved')
+    saved_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'saved'))
     model_path = os.path.join(saved_dir, 'xgb_incident_model.joblib')
     meta_path = os.path.join(saved_dir, 'model_meta.joblib')
 
     if not os.path.exists(model_path):
         print(f"Warning: Model not found at {model_path}. Run models/train.py first.")
-        return
+        return None, None
 
-    _model = joblib.load(model_path)
-    _meta = joblib.load(meta_path)
+    model = joblib.load(model_path)
+    meta = joblib.load(meta_path)
+    return model, meta
 
 def generate_unplanned_events(latitude: float, longitude: float, radius_km: float = 2.0) -> list:
     """
@@ -66,7 +60,7 @@ def predict_event_impact(
     start_time: str,
     duration_hours: float
 ) -> dict:
-    _load_model()
+    _model, _meta = _load_model()
 
     if _model is None:
         return {
@@ -106,22 +100,23 @@ def predict_event_impact(
     hour_sin = np.sin(2 * np.pi * hour / 24.0)
     hour_cos = np.cos(2 * np.pi * hour / 24.0)
 
-    features = pd.DataFrame([{
-        'event_cause': cause_code,
-        'zone': zone_code,
-        'hour': hour,
-        'day_of_week': day_of_week,
-        'duration_hours': duration_hours,
-        'priority': priority_code,
-        'latitude': latitude,
-        'longitude': longitude,
-        'is_weekend': is_weekend,
-        'is_rush_hour': is_rush_hour,
-        'hour_sin': hour_sin,
-        'hour_cos': hour_cos,
-    }])
+    # Build feature vector in the EXACT order the model was trained on.
+    # We use a raw numpy array to completely bypass XGBoost's feature name validation.
+    base_features = [cause_code, zone_code, hour, day_of_week, duration_hours, priority_code, latitude, longitude]
+    extended_features = base_features + [is_weekend, is_rush_hour, hour_sin, hour_cos]
 
-    total_pred = max(0, int(round(_model.predict(features)[0])))
+    # Check how many features the model expects
+    try:
+        num_expected = _model.n_features_in_
+    except AttributeError:
+        num_expected = len(extended_features)
+
+    if num_expected <= 8:
+        feature_array = np.array([base_features])
+    else:
+        feature_array = np.array([extended_features])
+
+    total_pred = max(0, int(round(_model.predict(feature_array)[0])))
 
     inflow_ratio = 0.30
     steady_ratio = 0.45
@@ -154,7 +149,7 @@ def predict_event_impact(
 
 def get_high_risk_junctions(latitude: float, longitude: float, total_incidents: int) -> list:
     """Returns top 5 high risk junctions based on event location and predicted volume"""
-    if total_incidents < 3:
+    if total_incidents < 1:
         return []
         
     np.random.seed(int(latitude * 1000)) # Stable randomness
@@ -230,7 +225,7 @@ def get_historical_replay(event_id: str) -> dict:
     Day 4: Given a past event ID, returns both the actual recorded incidents
     and what the model would have predicted. Includes accuracy metrics.
     """
-    _load_model()
+    _model, _meta = _load_model()
 
     # Load the correlated training data which has both event info + actual counts
     training_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'processed', 'training_data.pkl')

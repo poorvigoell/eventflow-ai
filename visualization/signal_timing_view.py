@@ -5,7 +5,11 @@ def render_signal_timing(signal_recommendations: list[dict]):
     Renders the Adaptive Signal Control panel:
     - For each junction: junction name, cycle length, green/red progress bar, recommendation text
     """
-    st.markdown("### 🚦 Adaptive Signal Control")
+    st.markdown("### 🚥 Adaptive Signal Control")
+    st.markdown("""
+    > [!TIP]
+    > **How this works:** This module dynamically alters the green-light timing at critical junctions surrounding the venue to actively flush traffic based on the current event phase (e.g., extending green lights towards highways during the Exodus phase).
+    """)
     st.caption("Optimal timing computed using Webster's Traffic Engineering Formula")
 
     if not signal_recommendations:

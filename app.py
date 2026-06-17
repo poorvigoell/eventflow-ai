@@ -6,7 +6,15 @@ from visualization.timeline import render_timeline
 from visualization.command_center import render_command_center
 from visualization.digital_twin import render_digital_twin
 from visualization.map_view import render_folium_map
-from models.predict import predict_event_impact
+from models.predict import predict_event_impact, get_economic_impact, predict_multi_event, get_tactical_recommendation, get_dispatch_recommendation
+from utils.traffic_signals import get_signal_recommendations
+from visualization.signal_timing_view import render_signal_timing
+from visualization.report_view import render_report_download
+from visualization.dispersal_view import render_dispersal_tab
+from visualization.nlp_input_view import render_nlp_input
+from visualization.transit_view import render_transit_view
+from utils.live_traffic import fetch_live_traffic
+import json
 
 st.set_page_config(
     page_title="EventFlow AI - Command Center",
@@ -51,11 +59,13 @@ st.markdown("""
     }
     
     div[data-testid="metric-container"] {
-        background: var(--secondary-background-color);
-        border: 1px solid rgba(128, 128, 128, 0.15);
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+        border-radius: 16px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
     }
     
     div[data-testid="stMetricValue"] {
@@ -94,34 +104,76 @@ st.sidebar.markdown('<div class="logo-text">EventFlow AI</div>', unsafe_allow_ht
 st.sidebar.markdown('<div class="logo-sub">City-Scale Traffic Simulator</div>', unsafe_allow_html=True)
 
 st.sidebar.markdown("### 🎛️ Event Settings")
-event_type_ui = st.sidebar.selectbox("Event Category", [
-    "🏟️ Cricket Match", 
-    "🚨 VIP Movement", 
-    "🎤 Public Concert",
-    "📢 Protest/Rally",
-    "🚧 Road Construction",
-    "🕌 Religious Procession",
-    "🌳 Tree Fall/Blockage"
-])
-venue = st.sidebar.selectbox("Target Venue / Location", [
-    "M Chinnaswamy Stadium (Central)", 
-    "Kanteerava Stadium (Central)",
-    "Freedom Park (Central)",
-    "Manyata Tech Park (North)",
-    "Phoenix Marketcity Mall (East)",
-    "Lalbagh Botanical Garden (South)",
+
+st.sidebar.markdown("#### 📂 Load Custom Dataset")
+uploaded_csv = st.sidebar.file_uploader("Upload Events CSV for testing", type=["csv"])
+if uploaded_csv:
+    st.sidebar.success(f"Successfully synced events from {uploaded_csv.name}")
+
+# 1. Upcoming Events Feed
+try:
+    with open(os.path.join(os.path.dirname(__file__), "data", "upcoming_events.json"), "r") as f:
+        upcoming_events = json.load(f)
+    with st.sidebar.expander("📅 Upcoming City Events"):
+        for ev in upcoming_events[:3]:
+            st.markdown(f"**{ev['name']}**")
+            st.caption(f"{ev['venue']} | {ev['date']} {ev['time']}")
+            st.markdown("---")
+except:
+    pass
+
+# 2. NLP Input
+parsed_nlp = render_nlp_input()
+
+event_types = [
+    "🏟️ Cricket Match", "🚨 VIP Movement", "🎤 Public Concert",
+    "📢 Protest/Rally", "🚧 Road Construction", "🕌 Religious Procession", "🌳 Tree Fall/Blockage"
+]
+venue_list = [
+    "M Chinnaswamy Stadium (Central)", "Kanteerava Stadium (Central)",
+    "Freedom Park (Central)", "Manyata Tech Park (North)",
+    "Phoenix Marketcity Mall (East)", "Lalbagh Botanical Garden (South)",
     "IIM Bangalore (South)"
-])
+]
 
 event_type_map = {
-    "🏟️ Cricket Match": "sports",
-    "🚨 VIP Movement": "vip_movement",
-    "🎤 Public Concert": "public_event",
-    "📢 Protest/Rally": "protest",
-    "🚧 Road Construction": "construction",
-    "🕌 Religious Procession": "religious",
+    "🏟️ Cricket Match": "sports", "🚨 VIP Movement": "vip_movement",
+    "🎤 Public Concert": "public_event", "📢 Protest/Rally": "protest",
+    "🚧 Road Construction": "construction", "🕌 Religious Procession": "religious",
     "🌳 Tree Fall/Blockage": "tree_fall"
 }
+
+# Update Session State if NLP was parsed
+if parsed_nlp:
+    v_lower = parsed_nlp['venue_name'].lower()
+    for v in venue_list:
+        if v_lower in v.lower() or v.lower() in v_lower or v_lower.split()[0] in v.lower():
+            st.session_state['selected_venue_idx'] = venue_list.index(v)
+            break
+            
+    e_map_rev = {v: k for k, v in event_type_map.items()}
+    if parsed_nlp['event_type'] in e_map_rev:
+        st.session_state['selected_event_idx'] = event_types.index(e_map_rev[parsed_nlp['event_type']])
+
+# Default Indices
+evt_idx = st.session_state.get('selected_event_idx', 0)
+ven_idx = st.session_state.get('selected_venue_idx', 0)
+
+event_type_ui = st.sidebar.selectbox("Event Category", event_types, index=evt_idx)
+venue = st.sidebar.selectbox("Target Venue / Location", venue_list, index=ven_idx)
+
+st.sidebar.markdown("#### 🕒 Event Schedule")
+import datetime
+col_d, col_t = st.sidebar.columns(2)
+with col_d:
+    event_date = st.date_input("Start Date", value=datetime.date.today())
+with col_t:
+    event_time = st.time_input("Start Time", value=datetime.time(18, 0))
+    
+duration_val = st.sidebar.slider("Duration (Hours)", min_value=1.0, max_value=12.0, value=4.0, step=0.5)
+
+start_time_val = f"{event_date} {event_time}"
+event_type_key = event_type_map[event_type_ui]
 
 venue_coords = {
     "M Chinnaswamy Stadium (Central)": {"lat": 12.9788, "lng": 77.5996, "zone": "Central"},
@@ -142,6 +194,7 @@ st.sidebar.markdown("### 🌩️ Environment Variables")
 weather_rain = st.sidebar.toggle("Heavy Rain Forecast", value=False)
 emergency_mode = st.sidebar.toggle("🚨 Emergency Routing Mode", value=False)
 multi_event_mode = st.sidebar.toggle("💥 Multi-Event Simulator", value=False)
+live_traffic_mode = st.sidebar.toggle("📡 Live Traffic Mode (TomTom)", value=False)
 
 if multi_event_mode:
     st.sidebar.markdown("#### Secondary Event")
@@ -155,15 +208,13 @@ if multi_event_mode:
     sec_zone = sec_coords[sec_event_ui]["zone"]
     sec_type = sec_coords[sec_event_ui]["type"]
 
-from models.predict import predict_event_impact, get_economic_impact, predict_multi_event
-
 prediction_data = predict_event_impact(
-    event_type=event_type_map[event_type_ui],
+    event_type=event_type_key,
     latitude=lat,
     longitude=lng,
     zone=zone,
-    start_time="2024-03-15 18:00:00",
-    duration_hours=4.0
+    start_time=start_time_val,
+    duration_hours=duration_val
 )
 
 multi_event_data = None
@@ -172,31 +223,36 @@ if multi_event_mode:
         {
             "event_type": event_type_map[event_type_ui],
             "latitude": lat, "longitude": lng, "zone": zone,
-            "start_time": "2024-03-15 18:00:00", "duration_hours": 4.0
+            "start_time": start_time_val, "duration_hours": duration_val
         },
         {
             "event_type": sec_type,
             "latitude": sec_lat, "longitude": sec_lng, "zone": sec_zone,
-            "start_time": "2024-03-15 18:00:00", "duration_hours": 4.0
+            "start_time": start_time_val, "duration_hours": duration_val
         }
     ]
     multi_event_data = predict_multi_event(events)
-    # Override primary prediction with combined totals
     prediction_data['total_incidents'] = multi_event_data['combined_total_incidents']
     prediction_data['confidence'] = multi_event_data['combined_confidence']
+
+# Apply Weather Multiplier directly to core total before rendering
+if weather_rain:
+    prediction_data['total_incidents'] = int(prediction_data['total_incidents'] * 1.5)
+    prediction_data['confidence'] = 0.65
+
+# Re-calculate timeline based on final compounded/weather totals
+from models.predict import get_phase_timeline, get_high_risk_junctions
+prediction_data['timeline'] = get_phase_timeline(prediction_data['total_incidents'], start_time_val, duration_val)
+prediction_data['high_risk_junctions'] = get_high_risk_junctions(lat, lng, prediction_data['total_incidents'])
 
 # Extract timeline before passing prediction_data to visualizations that don't expect it
 raw_timeline = prediction_data.pop("timeline", [])
 
-if weather_rain:
-    prediction_data['total_incidents'] = int(prediction_data['total_incidents'] * 1.3)
-    prediction_data['confidence'] = 0.65
-
 # Call real ML backend for economic impact
 real_econ = get_economic_impact(
     total_incidents=prediction_data['total_incidents'], 
-    duration_hours=4.0, 
-    event_type=event_type_map[event_type_ui]
+    duration_hours=duration_val, 
+    event_type=event_type_key
 )
 
 economic_impact = {
@@ -227,7 +283,9 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 🗺️ Map Settings")
 view_mode = st.sidebar.radio("Map View Mode", ["3D Tilted View", "2D Top-Down View"])
 
-tab_live, tab_twin = st.tabs(["🚦 Live Command Center", "⏳ Digital Twin (Replay)"])
+tab_live, tab_tactical, tab_signals, tab_dispersal, tab_twin = st.tabs([
+    "🚦 Live Dashboard", "📋 Tactical Plan", "🚥 Signals", "🏃 Crowd Dispersal", "⏳ Digital Twin"
+])
 
 with tab_live:
     col_main, col_cmd = st.columns([2.2, 1])
@@ -238,15 +296,21 @@ with tab_live:
         if multi_event_mode and multi_event_data and multi_event_data['compounding_penalty_applied']:
             st.warning(f"⚠️ **Compounding Alert:** Overlapping events detected! Applied a {multi_event_data['penalty_multiplier']}x severity penalty.", icon="💥")
 
+        # Get dynamic dispatch metrics
+        dispatch = get_dispatch_recommendation(prediction_data['total_incidents'], prediction_data['confidence'])
+        cap_loss = min(100, int((len(critical_roads) / max(1, len(road_options))) * 100)) if critical_roads else 0
+
         m1, m2, m3, m4 = st.columns(4)
         m1.metric(label="Predicted Incident Surge", value=f"+{prediction_data['total_incidents']}", delta="Critical", delta_color="inverse")
-        m2.metric(label="Capacity Loss (Radius)", value="38%", delta="-12% from baseline", delta_color="inverse")
-        m3.metric(label="Recommended Dispatch", value="12 Units", delta="Traffic Police")
+        m2.metric(label="Capacity Loss (Radius)", value=f"{cap_loss}%", delta="Dynamic", delta_color="inverse")
+        m3.metric(label="Recommended Dispatch", value=f"{dispatch['total_units']} Units", delta=f"{dispatch['alert_level']} Alert", delta_color="off" if dispatch['alert_level']=="GREEN" else "inverse")
         m4.metric(label="Overall Risk Score", value=f"{int(prediction_data['confidence']*100)}/100", delta="High", delta_color="inverse")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown("### 🌐 Live Road Network")
+
+        live_lines = fetch_live_traffic(lat, lng) if live_traffic_mode else None
 
         render_folium_map(
             lat=lat,
@@ -254,7 +318,9 @@ with tab_live:
             prediction_data=prediction_data,
             critical_roads=critical_roads,
             emergency_routes=emergency_routes,
+            live_traffic_lines=live_lines,
             height=500,
+            venue_name=venue
         )
         
         if G is None:
@@ -266,6 +332,37 @@ with tab_live:
     with col_cmd:
         render_command_center(prediction_data, G, road_options, economic_impact, critical_roads)
 
+with tab_tactical:
+    st.markdown("## 📋 Deployment & Tactical Plan")
+    tactical = get_tactical_recommendation(prediction_data['total_incidents'], prediction_data.get('high_risk_junctions', []), duration_val)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### Manpower Breakdown")
+        mp = tactical['manpower']
+        st.info(f"👮 Traffic Police: {mp['traffic_police']}")
+        st.info(f"🚓 Patrol Vehicles: {mp['patrol_vehicles']}")
+        st.info(f"🚑 Ambulances: {mp['ambulances']}")
+        st.info(f"🚜 Tow Trucks: {mp['tow_trucks']}")
+        st.info(f"🚧 Barricade Teams: {mp['barricade_teams']}")
+        
+        # Add dynamic pie chart
+        from visualization.timeline import render_tactical_pie_chart
+        st.markdown("<br>#### Resource Allocation", unsafe_allow_html=True)
+        render_tactical_pie_chart(tactical)
+        
+    with col2:
+        render_transit_view(venue, prediction_data['total_incidents'])
+        signals = get_signal_recommendations(prediction_data.get('high_risk_junctions', []), prediction_data['total_incidents'])
+        render_report_download(venue, event_type_key, prediction_data, economic_impact, tactical, signals, None)
+
+with tab_signals:
+    signals = get_signal_recommendations(prediction_data.get('high_risk_junctions', []), prediction_data['total_incidents'])
+    render_signal_timing(signals)
+
+with tab_dispersal:
+    st.markdown("## 🏃 Crowd Dispersal Simulation")
+    render_dispersal_tab(lat, lng, prediction_data['total_incidents'] * 150)
+
 with tab_twin:
-    render_digital_twin("EVT-4402", lat, lng)
- 
+    render_digital_twin("EVT-4402", lat, lng, prediction_data)

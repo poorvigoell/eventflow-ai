@@ -9,7 +9,7 @@ def _risk_color(score):
         return "#ff9900"
     return "#ffcc00"
 
-def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_routes=None, height=500):
+def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_routes=None, live_traffic_lines=None, height=500, venue_name="Venue"):
     """
     Renders the Live Road Network map using Folium (Leaflet.js).
     Dynamically adjusts line thickness based on map zoom level.
@@ -30,10 +30,14 @@ def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_
     zoom_level = st.session_state.map_zoom
     dynamic_weight = max(1.5, min(30.0, 5.0 * (2.0 ** (zoom_level - 14))))
 
+    # Sync map theme with Streamlit
+    theme_base = st.get_option("theme.base")
+    tiles = "CartoDB positron" if theme_base == "light" else "CartoDB dark_matter"
+
     m = folium.Map(
         location=st.session_state.map_center,
         zoom_start=st.session_state.map_zoom,
-        tiles="CartoDB dark_matter",
+        tiles=tiles,
         prefer_canvas=True,
     )
 
@@ -63,7 +67,7 @@ def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_
         fill=True,
         fill_color="#ff416c",
         fill_opacity=1.0,
-        tooltip="📍 Venue",
+        tooltip=f"📍 {venue_name}",
         popup="Event Venue",
     ).add_to(m)
 
@@ -95,6 +99,19 @@ def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_
                 weight=dynamic_weight,
                 opacity=0.9,
                 tooltip="Designated Emergency Route",
+            ).add_to(m)
+
+    # --- Live Traffic ---
+    if live_traffic_lines:
+        for route in live_traffic_lines:
+            path = route.get("path", [])
+            folium.PolyLine(
+                locations=path,
+                color=route.get("color", "#ffffff"),
+                weight=dynamic_weight * 0.6,  # Slightly thinner than critical roads
+                opacity=0.7,
+                tooltip=f"Live Traffic: {route.get('level', 'unknown').title()}",
+                dash_array='5, 5'  # dashed to distinguish from routes
             ).add_to(m)
 
     # --- High-risk junctions ---

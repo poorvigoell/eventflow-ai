@@ -41,7 +41,7 @@ def render_report_download(
     
     st.download_button(
         label="⬇️ Download PDF Report",
-        data=pdf_bytes,
+        data=bytes(pdf_bytes),
         file_name=f"EventFlow_Deployment_{venue_name.replace(' ', '_')}.pdf",
         mime="application/pdf",
         use_container_width=True,

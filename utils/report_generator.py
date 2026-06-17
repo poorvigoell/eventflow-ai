@@ -87,4 +87,4 @@ def generate_report(
     pdf.cell(0, 7, f"  Person-Hours Lost: {economic_impact.get('person_hours_lost', 0)}", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 7, f"  {economic_impact.get('surcharge_recommendation', '')}", new_x="LMARGIN", new_y="NEXT")
 
-    return pdf.output()
+    return bytes(pdf.output())
