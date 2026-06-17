@@ -389,23 +389,106 @@ with tab_tactical:
     st.markdown("## 📋 Deployment & Tactical Plan")
     tactical = get_tactical_recommendation(prediction_data['total_incidents'], prediction_data.get('high_risk_junctions', []), duration_val)
     
+    # Timeline Alert Box
+    timeline_text = tactical.get("deployment_timeline", "Deploy 45 min before event start")
+    st.markdown(f"""
+    <div style="background: rgba(0, 210, 255, 0.08); border-left: 5px solid #00d2ff; padding: 15px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        <h5 style="margin: 0; color: #00d2ff; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.8rem;">⏱️ Deployment Timing Protocol</h5>
+        <p style="margin: 5px 0 0 0; font-size: 1.1rem; font-weight: bold; color: var(--text-color);">{timeline_text}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### Manpower Breakdown")
+        st.markdown("#### 👮 Tactical Resource Allocation")
         mp = tactical['manpower']
-        st.info(f"👮 Traffic Police: {mp['traffic_police']}")
-        st.info(f"🚓 Patrol Vehicles: {mp['patrol_vehicles']}")
-        st.info(f"🚑 Ambulances: {mp['ambulances']}")
-        st.info(f"🚜 Tow Trucks: {mp['tow_trucks']}")
-        st.info(f"🚧 Barricade Teams: {mp['barricade_teams']}")
+        total_units = sum(mp.values())
+        
+        # Grid of cards
+        st.markdown(f"""
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px;">
+            <div style="background: rgba(0, 210, 255, 0.06); border: 1px solid rgba(0, 210, 255, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span style="font-size: 1.5rem;">👮</span>
+                <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Traffic Police</div>
+                <h3 style="margin: 5px 0 0 0; color: #00d2ff; font-size: 1.8rem; font-weight: 800;">{mp['traffic_police']}</h3>
+            </div>
+            <div style="background: rgba(58, 123, 213, 0.06); border: 1px solid rgba(58, 123, 213, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span style="font-size: 1.5rem;">🚓</span>
+                <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Patrols</div>
+                <h3 style="margin: 5px 0 0 0; color: #3a7bd5; font-size: 1.8rem; font-weight: 800;">{mp['patrol_vehicles']}</h3>
+            </div>
+            <div style="background: rgba(0, 230, 118, 0.06); border: 1px solid rgba(0, 230, 118, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span style="font-size: 1.5rem;">🚑</span>
+                <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Ambulances</div>
+                <h3 style="margin: 5px 0 0 0; color: #00e676; font-size: 1.8rem; font-weight: 800;">{mp['ambulances']}</h3>
+            </div>
+            <div style="background: rgba(255, 187, 0, 0.06); border: 1px solid rgba(255, 187, 0, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span style="font-size: 1.5rem;">🚜</span>
+                <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Tow Trucks</div>
+                <h3 style="margin: 5px 0 0 0; color: #ffbb00; font-size: 1.8rem; font-weight: 800;">{mp['tow_trucks']}</h3>
+            </div>
+            <div style="background: rgba(255, 75, 43, 0.06); border: 1px solid rgba(255, 75, 43, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span style="font-size: 1.5rem;">🚧</span>
+                <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Barricades</div>
+                <h3 style="margin: 5px 0 0 0; color: #ff4b2b; font-size: 1.8rem; font-weight: 800;">{mp['barricade_teams']}</h3>
+            </div>
+            <div style="background: rgba(128, 0, 128, 0.06); border: 1px solid rgba(128, 0, 128, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span style="font-size: 1.5rem;">📊</span>
+                <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Total Units</div>
+                <h3 style="margin: 5px 0 0 0; color: purple; font-size: 1.8rem; font-weight: 800;">{total_units}</h3>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Add dynamic pie chart
         from visualization.timeline import render_tactical_pie_chart
-        st.markdown("<br>#### Resource Allocation", unsafe_allow_html=True)
+        st.markdown("<br>#### Resource Allocation Breakdown", unsafe_allow_html=True)
         render_tactical_pie_chart(tactical)
         
     with col2:
         render_transit_view(venue, prediction_data['total_incidents'])
+        
+        # Barricade Plan
+        st.markdown("#### 🚧 Active Barricade Protocol", unsafe_allow_html=True)
+        roads = tactical.get("barricade_roads", [])
+        if not roads:
+            st.info("No active barricades recommended for this congestion level.")
+        else:
+            for road in roads:
+                st.markdown(f"""
+                <div style="background: rgba(255, 75, 43, 0.06); border: 1px solid rgba(255, 75, 43, 0.15); border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong style="color: var(--text-color); font-size: 0.95rem;">{road['road']}</strong>
+                        <div style="font-size: 0.8rem; color: #a0aec0; margin-top: 2px;">{road['reason']}</div>
+                    </div>
+                    <span style="background: #ff4b2b; color: white; padding: 3px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; white-space: nowrap;">{road['timing']}</span>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Diversion Routing
+        st.markdown("<br>#### 🧭 Routing & Diversion Protocol", unsafe_allow_html=True)
+        diversions = tactical.get("diversion_plan", [])
+        if not diversions:
+            st.info("No specific diversions required.")
+        else:
+            for div in diversions:
+                st.markdown(f"""
+                <div style="background: rgba(0, 210, 255, 0.06); border: 1px solid rgba(0, 210, 255, 0.15); border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <strong style="color: #00d2ff; font-size: 0.9rem;">Alternate Route</strong>
+                        <span style="background: #00d2ff; color: #0e1117; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: bold;">{div['added_time']} delay</span>
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-color); display: flex; flex-wrap: wrap; align-items: center; gap: 6px;">
+                        <span style="color: #ff4b2b; text-decoration: line-through;">{div['from']}</span>
+                        <span>➡️</span>
+                        <span style="color: #00e676; font-weight: bold;">via {div['via']}</span>
+                        <span>➡️</span>
+                        <span style="color: var(--text-color); font-weight: 500;">{div['to']}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
         signals = get_signal_recommendations(prediction_data.get('high_risk_junctions', []), prediction_data['total_incidents'])
         render_report_download(venue, event_type_key, prediction_data, economic_impact, tactical, signals, None)
 
