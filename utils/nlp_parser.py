@@ -39,7 +39,8 @@ def parse_event_text(text: str) -> dict:
         "manyata": "Manyata Tech Park",
         "phoenix": "Phoenix Marketcity Mall",
         "lalbagh": "Lalbagh Botanical Garden",
-        "iim": "IIM Bangalore"
+        "iim": "IIM Bangalore",
+        "mg road": "MG Road"
     }
     
     venue_name = "M Chinnaswamy Stadium" # default

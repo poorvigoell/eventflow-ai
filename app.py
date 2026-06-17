@@ -14,6 +14,7 @@ from visualization.dispersal_view import render_dispersal_tab
 from visualization.nlp_input_view import render_nlp_input
 from visualization.transit_view import render_transit_view
 from utils.live_traffic import fetch_live_traffic
+from utils.transit_infrastructure import get_transit_pois
 import json
 
 st.set_page_config(
@@ -189,6 +190,13 @@ lat = venue_coords[venue]["lat"]
 lng = venue_coords[venue]["lng"]
 zone = venue_coords[venue]["zone"]
 
+# Fetch nearby transit POIs for the selected venue
+@st.cache_data
+def get_venue_pois(lt, lg):
+    return get_transit_pois(lt, lg, radius_km=2.5)
+
+transit_points = get_venue_pois(lat, lng)
+
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌩️ Environment Variables")
 weather_rain = st.sidebar.toggle("Heavy Rain Forecast", value=False)
@@ -267,11 +275,53 @@ def get_critical_roads_cached(_G, lat, lng):
     return sim.get_critical_roads(_G, lat, lng)
 
 @st.cache_data
-def get_emergency_routes_cached(_G, lat, lng):
+def get_emergency_routes_raw_cached(_G, lat, lng):
     return sim.get_emergency_routes(_G, lat, lng)
 
+def _build_emergency_routes(G, lat, lng, emergency_mode):
+    """
+    Normalises the simulator output (which uses primary_path / detour_path)
+    into the flat list-of-{path} dicts that render_folium_map expects.
+    Falls back to hard-coded radial routes when the graph is unavailable.
+    """
+    if not emergency_mode:
+        return None
+
+    flat_routes = []
+
+    if G:
+        raw = get_emergency_routes_raw_cached(G, lat, lng)
+        for r in raw:
+            if r.get("primary_path"):
+                flat_routes.append({"path": r["primary_path"]})
+            if r.get("detour_path") and r["detour_path"] != r.get("primary_path"):
+                flat_routes.append({"path": r["detour_path"]})
+
+    # Fallback: synthetic radial evacuation corridors so the map always shows
+    # something meaningful when the graph isn't loaded or routes are empty.
+    if not flat_routes:
+        import math
+        num_spokes = 4
+        spoke_len_deg = 0.018  # ~2 km
+        for i in range(num_spokes):
+            angle = math.radians(i * (360 / num_spokes))
+            end_lat = lat + spoke_len_deg * math.cos(angle)
+            end_lng = lng + spoke_len_deg * math.sin(angle)
+            # 5-point smooth line
+            flat_routes.append({
+                "path": [
+                    [lng, lat],
+                    [lng + (end_lng - lng) * 0.25, lat + (end_lat - lat) * 0.25],
+                    [lng + (end_lng - lng) * 0.50, lat + (end_lat - lat) * 0.50],
+                    [lng + (end_lng - lng) * 0.75, lat + (end_lat - lat) * 0.75],
+                    [end_lng, end_lat],
+                ]
+            })
+
+    return flat_routes
+
 critical_roads = get_critical_roads_cached(G, lat, lng) if G else None
-emergency_routes = get_emergency_routes_cached(G, lat, lng) if emergency_mode and G else None
+emergency_routes = _build_emergency_routes(G, lat, lng, emergency_mode)
 
 timeline_data = {
     "hours": [item["time"] for item in raw_timeline],
@@ -309,6 +359,8 @@ with tab_live:
         st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown("### 🌐 Live Road Network")
+        if emergency_mode:
+            st.success("🟢 **Emergency Routing Mode Active** — Green corridors show designated evacuation routes.", icon="🚨")
 
         live_lines = fetch_live_traffic(lat, lng) if live_traffic_mode else None
 
@@ -320,7 +372,8 @@ with tab_live:
             emergency_routes=emergency_routes,
             live_traffic_lines=live_lines,
             height=500,
-            venue_name=venue
+            venue_name=venue,
+            transit_points=transit_points,
         )
         
         if G is None:
@@ -361,8 +414,15 @@ with tab_signals:
     render_signal_timing(signals)
 
 with tab_dispersal:
-    st.markdown("## 🏃 Crowd Dispersal Simulation")
-    render_dispersal_tab(lat, lng, prediction_data['total_incidents'] * 150)
+    render_dispersal_tab(
+        lat=lat,
+        lng=lng,
+        crowd_size=prediction_data['total_incidents'] * 150,
+        G=G,
+        event_type=event_type_key,
+        venue_name=venue,
+        total_incidents=prediction_data['total_incidents'],
+    )
 
 with tab_twin:
-    render_digital_twin("EVT-4402", lat, lng, prediction_data)
+    render_digital_twin("EVT-4402", lat, lng, prediction_data, event_date=event_date)

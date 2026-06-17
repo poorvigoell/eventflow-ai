@@ -83,8 +83,16 @@ def generate_report(
     pdf.set_font("Helvetica", "B", 14)
     pdf.cell(0, 10, "5. Economic Impact", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 11)
-    pdf.cell(0, 7, f"  Total Cost: Rs.{economic_impact.get('total_cost_inr', 0):,}", new_x="LMARGIN", new_y="NEXT")
+    # Get total cost and format as safe ASCII characters, mapping the Unicode Rupee symbol to Rs.
+    total_cost = economic_impact.get('total_cost_inr', 0)
+    if isinstance(total_cost, (int, float)):
+        total_cost_str = f"{total_cost:,}"
+    else:
+        total_cost_str = str(total_cost).replace("₹", "Rs. ")
+        
+    pdf.cell(0, 7, f"  Total Cost: Rs. {total_cost_str}", new_x="LMARGIN", new_y="NEXT")
     pdf.cell(0, 7, f"  Person-Hours Lost: {economic_impact.get('person_hours_lost', 0)}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, f"  {economic_impact.get('surcharge_recommendation', '')}", new_x="LMARGIN", new_y="NEXT")
+    surcharge_rec = economic_impact.get('surcharge_recommendation', '').replace("₹", "Rs. ")
+    pdf.cell(0, 7, f"  {surcharge_rec}", new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output())

@@ -19,8 +19,8 @@ def estimate_transit_diversion(venue_name: str, total_incidents: int) -> dict:
         station_info = {"station": "Lalbagh", "dist": 0.1, "line": "Green"}
     elif "iim" in v:
         station_info = {"station": "JP Nagar", "dist": 2.1, "line": "Green"}
-    elif "mg road" in v:
-        station_info = {"station": "MG Road", "dist": 0.0, "line": "Purple"}
+    elif "silk board" in v:
+        station_info = {"station": "Rashtriya Vidyalaya Road", "dist": 2.2, "line": "Green"}
     else:
         station_info = {"station": "City Railway Station", "dist": 4.0, "line": "Purple"}
     
@@ -28,7 +28,7 @@ def estimate_transit_diversion(venue_name: str, total_incidents: int) -> dict:
     if station_info["dist"] <= 1.0:
         diversion_rate = 0.35  # 35% of affected people can take metro
     elif station_info["dist"] <= 3.0:
-        diversion_rate = 0.15
+        diversion_rate = 0.10
     else:
         diversion_rate = 0.05
 

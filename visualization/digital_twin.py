@@ -2,9 +2,18 @@ import streamlit as st
 import folium
 from streamlit_folium import st_folium
 
-def render_digital_twin(event_id, lat, lng, prediction_data):
+def render_digital_twin(event_id, lat, lng, prediction_data, event_date=None):
+    import datetime
     st.markdown("### ⏳ Historical Event Replay (Digital Twin)")
     st.caption("Comparing current AI predictions against historical similar events in the city's traffic database.")
+
+    if event_date is None:
+        event_date = datetime.date.today()
+    
+    # Calculate historical matched date (exactly 52 weeks/364 days ago to preserve weekday)
+    historical_date = event_date - datetime.timedelta(days=364)
+    target_date_str = event_date.strftime("%B %d, %Y")
+    historical_date_str = historical_date.strftime("%B %d, %Y")
 
     # Generate dynamic comparison based on current prediction
     pred_count = max(1, prediction_data.get("total_incidents", 10))
@@ -24,7 +33,8 @@ def render_digital_twin(event_id, lat, lng, prediction_data):
     col_pred, col_actual = st.columns(2)
 
     with col_pred:
-        st.markdown("<h4 style='text-align: center; color: var(--text-color); border-bottom: 2px solid #00d2ff; padding-bottom: 5px;'>AI Predicted</h4>", unsafe_allow_html=True)
+        st.markdown("<h4 style='text-align: center; color: var(--text-color); margin-bottom: 2px;'>AI Predicted</h4>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center; font-size: 0.95rem; color: #00d2ff; border-bottom: 2px solid #00d2ff; padding-bottom: 8px; margin-bottom: 12px; font-weight: bold;'>Target: {target_date_str}</div>", unsafe_allow_html=True)
         m_pred = folium.Map(location=[lat, lng], zoom_start=13, tiles="CartoDB dark_matter", prefer_canvas=True)
         folium.Circle(
             location=[lat, lng],
@@ -41,7 +51,8 @@ def render_digital_twin(event_id, lat, lng, prediction_data):
         st.metric("Predicted Incidents", replay_data["predicted"])
 
     with col_actual:
-        st.markdown("<h4 style='text-align: center; color: var(--text-color); border-bottom: 2px solid #ff4b2b; padding-bottom: 5px;'>Actual Ground Truth</h4>", unsafe_allow_html=True)
+        st.markdown("<h4 style='text-align: center; color: var(--text-color); margin-bottom: 2px;'>Actual Ground Truth</h4>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center; font-size: 0.95rem; color: #ff4b2b; border-bottom: 2px solid #ff4b2b; padding-bottom: 8px; margin-bottom: 12px; font-weight: bold;'>Matched: {historical_date_str}</div>", unsafe_allow_html=True)
         m_actual = folium.Map(location=[lat, lng], zoom_start=13, tiles="CartoDB dark_matter", prefer_canvas=True)
         folium.Circle(
             location=[lat, lng],
@@ -56,3 +67,4 @@ def render_digital_twin(event_id, lat, lng, prediction_data):
         folium.CircleMarker(location=[lat, lng], radius=8, color="#ff4b2b", fill=True, fill_opacity=1.0).add_to(m_actual)
         st_folium(m_actual, width="100%", height=350, returned_objects=[], key="twin_actual")
         st.metric("Actual Incidents", replay_data["actual"])
+

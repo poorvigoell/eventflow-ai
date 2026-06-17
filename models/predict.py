@@ -149,7 +149,8 @@ def predict_event_impact(
 
 def get_high_risk_junctions(latitude: float, longitude: float, total_incidents: int) -> list:
     """Returns top 5 high risk junctions based on event location and predicted volume"""
-    if total_incidents < 1:
+    # Return empty list for low incident counts (<3) to avoid spurious high‑risk nodes
+    if total_incidents < 3:
         return []
         
     np.random.seed(int(latitude * 1000)) # Stable randomness

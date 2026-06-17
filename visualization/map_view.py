@@ -9,7 +9,7 @@ def _risk_color(score):
         return "#ff9900"
     return "#ffcc00"
 
-def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_routes=None, live_traffic_lines=None, height=500, venue_name="Venue"):
+def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_routes=None, live_traffic_lines=None, height=500, venue_name="Venue", transit_points=None):
     """
     Renders the Live Road Network map using Folium (Leaflet.js).
     Dynamically adjusts line thickness based on map zoom level.
@@ -112,6 +112,29 @@ def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_
                 opacity=0.7,
                 tooltip=f"Live Traffic: {route.get('level', 'unknown').title()}",
                 dash_array='5, 5'  # dashed to distinguish from routes
+            ).add_to(m)
+
+    # --- Transit Infrastructure POIs ---
+    if transit_points:
+        for pt in transit_points:
+            pt_type = pt.get("type", "bus")
+            if pt_type == "metro":
+                icon_color = "purple"
+                icon_symbol = "subway"
+                prefix = "fa"
+            elif pt_type == "bus":
+                icon_color = "blue"
+                icon_symbol = "bus"
+                prefix = "fa"
+            else: # parking
+                icon_color = "green"
+                icon_symbol = "square" # fallback for standard parking sign
+                prefix = "fa"
+            
+            folium.Marker(
+                location=[pt["lat"], pt["lng"]],
+                tooltip=pt["name"],
+                icon=folium.Icon(color=icon_color, icon=icon_symbol, prefix=prefix)
             ).add_to(m)
 
     # --- High-risk junctions ---
