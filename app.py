@@ -117,22 +117,52 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### 🌩️ Environment Variables")
 weather_rain = st.sidebar.toggle("Heavy Rain Forecast", value=False)
 emergency_mode = st.sidebar.toggle("🚨 Emergency Routing Mode", value=False)
+multi_event_mode = st.sidebar.toggle("💥 Multi-Event Simulator", value=False)
+
+if multi_event_mode:
+    st.sidebar.markdown("#### Secondary Event")
+    sec_event_ui = st.sidebar.selectbox("Simultaneous Event", ["🚧 MG Road Construction", "📢 Freedom Park Protest"])
+    sec_coords = {
+        "🚧 MG Road Construction": {"lat": 12.9750, "lng": 77.6050, "zone": "Central", "type": "construction"},
+        "📢 Freedom Park Protest": {"lat": 12.9782, "lng": 77.5815, "zone": "Central", "type": "protest"}
+    }
+    sec_lat = sec_coords[sec_event_ui]["lat"]
+    sec_lng = sec_coords[sec_event_ui]["lng"]
+    sec_zone = sec_coords[sec_event_ui]["zone"]
+    sec_type = sec_coords[sec_event_ui]["type"]
+
+from models.predict import predict_event_impact, get_economic_impact, predict_multi_event
 
 prediction_data = predict_event_impact(
     event_type=event_type_map[event_type_ui],
     latitude=lat,
     longitude=lng,
     zone=zone,
-    start_time="2024-03-15 18:00:00",  # Defaulting for now
+    start_time="2024-03-15 18:00:00",
     duration_hours=4.0
 )
 
+multi_event_data = None
+if multi_event_mode:
+    events = [
+        {
+            "event_type": event_type_map[event_type_ui],
+            "latitude": lat, "longitude": lng, "zone": zone,
+            "start_time": "2024-03-15 18:00:00", "duration_hours": 4.0
+        },
+        {
+            "event_type": sec_type,
+            "latitude": sec_lat, "longitude": sec_lng, "zone": sec_zone,
+            "start_time": "2024-03-15 18:00:00", "duration_hours": 4.0
+        }
+    ]
+    multi_event_data = predict_multi_event(events)
+    # Override primary prediction with combined totals
+    prediction_data['total_incidents'] = multi_event_data['combined_total_incidents']
+    prediction_data['confidence'] = multi_event_data['combined_confidence']
+
 # Extract timeline before passing prediction_data to visualizations that don't expect it
 raw_timeline = prediction_data.pop("timeline", [])
-
-from models.predict import predict_event_impact, get_economic_impact
-
-# ... (skipping down to where economic_impact is defined) ...
 
 if weather_rain:
     prediction_data['total_incidents'] = int(prediction_data['total_incidents'] * 1.3)
@@ -180,6 +210,10 @@ with tab_live:
 
     with col_main:
         st.markdown("### 📊 Live Impact Metrics")
+        
+        if multi_event_mode and multi_event_data and multi_event_data['compounding_penalty_applied']:
+            st.warning(f"⚠️ **Compounding Alert:** Overlapping events detected! Applied a {multi_event_data['penalty_multiplier']}x severity penalty.", icon="💥")
+
         m1, m2, m3, m4 = st.columns(4)
         m1.metric(label="Predicted Incident Surge", value=f"+{prediction_data['total_incidents']}", delta="Critical", delta_color="inverse")
         m2.metric(label="Capacity Loss (Radius)", value="38%", delta="-12% from baseline", delta_color="inverse")
