@@ -130,14 +130,26 @@ prediction_data = predict_event_impact(
 # Extract timeline before passing prediction_data to visualizations that don't expect it
 raw_timeline = prediction_data.pop("timeline", [])
 
+from models.predict import predict_event_impact, get_economic_impact
+
+# ... (skipping down to where economic_impact is defined) ...
+
 if weather_rain:
     prediction_data['total_incidents'] = int(prediction_data['total_incidents'] * 1.3)
     prediction_data['confidence'] = 0.65
 
+# Call real ML backend for economic impact
+real_econ = get_economic_impact(
+    total_incidents=prediction_data['total_incidents'], 
+    duration_hours=4.0, 
+    event_type=event_type_map[event_type_ui]
+)
+
 economic_impact = {
-    "cost_lakhs": 24.5 if not weather_rain else 32.1,
-    "person_hours": "14,500" if not weather_rain else "18,200",
-    "surcharge_lakhs": 5.0 if not weather_rain else 6.5
+    "cost_lakhs": round(real_econ['total_cost_inr'] / 100000, 2),
+    "person_hours": f"{int(real_econ['person_hours_lost']):,}",
+    "surcharge_lakhs": round((real_econ['total_cost_inr'] / 10) / 100000, 2) if real_econ['total_cost_inr'] > 1000000 else 0.0,
+    "surcharge_recommendation": real_econ['surcharge_recommendation']
 }
 
 @st.cache_data
