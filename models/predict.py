@@ -173,11 +173,208 @@ def get_phase_timeline(total_incidents: int, start_time: str, duration_hours: fl
     return timeline
 
 def get_historical_replay(event_id: str) -> dict:
+    """
+    Day 4: Given a past event ID, returns both the actual recorded incidents
+    and what the model would have predicted. Includes accuracy metrics.
+    """
+    _load_model()
+
+    # Load the correlated training data which has both event info + actual counts
+    training_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'processed', 'training_data.pkl')
+    if not os.path.exists(training_path):
+        return {"error": "training_data.pkl not found. Run data/correlator.py first."}
+
+    training_df = pd.read_pickle(training_path)
+
+    # Look up the event by ID
+    row = training_df[training_df['event_id'] == event_id]
+    if row.empty:
+        # Fallback: use the first event in the dataset as a demo
+        row = training_df.iloc[[0]]
+        event_id = row['event_id'].values[0]
+
+    row = row.iloc[0]
+    actual_total = int(row['total_incidents'])
+    actual_inflow = int(row['inflow_incidents'])
+    actual_steady = int(row['steady_incidents'])
+    actual_exodus = int(row['exodus_incidents'])
+
+    # Rebuild a fake start_time from hour + day_of_week for prediction
+    # Use a fixed reference date and inject the event's hour
+    from datetime import datetime, timedelta
+    base_date = datetime(2024, 3, 4)  # Monday
+    days_offset = int(row['day_of_week'])
+    start_dt = base_date + timedelta(days=days_offset)
+    start_time_str = start_dt.strftime('%Y-%m-%d') + f" {int(row['hour']):02d}:00:00"
+
+    predicted_result = predict_event_impact(
+        event_type=str(row['event_cause']),
+        latitude=float(row['latitude']),
+        longitude=float(row['longitude']),
+        zone=str(row['zone']),
+        start_time=start_time_str,
+        duration_hours=float(row['duration_hours'])
+    )
+
+    predicted_total = predicted_result['total_incidents']
+
+    # Accuracy: 100 - mean absolute percentage error (capped at 100%)
+    if actual_total > 0:
+        accuracy_pct = round(max(0.0, 100.0 - abs(predicted_total - actual_total) / actual_total * 100), 1)
+    elif predicted_total == 0:
+        accuracy_pct = 100.0
+    else:
+        accuracy_pct = 0.0
+
     return {
-        "actual": 16,
-        "predicted": 14,
-        "accuracy_pct": 87.5
+        "event_id": event_id,
+        "actual": {
+            "total": actual_total,
+            "inflow": actual_inflow,
+            "steady": actual_steady,
+            "exodus": actual_exodus,
+        },
+        "predicted": {
+            "total": predicted_total,
+            "phases": predicted_result.get('phases', {}),
+        },
+        "accuracy_pct": accuracy_pct,
+        "model_confidence": predicted_result.get('confidence', 0.0),
+        "high_risk_junctions": predicted_result.get('high_risk_junctions', []),
     }
+
+
+def get_economic_impact(
+    total_incidents: int,
+    duration_hours: float,
+    event_type: str = 'public_event'
+) -> dict:
+    """
+    Day 5: Estimates economic impact of predicted traffic congestion.
+    Returns affected commuters, person-hours of delay, rupee cost, fuel waste,
+    and an event organizer surcharge recommendation.
+    """
+    # Assumptions based on Bengaluru traffic research
+    AVG_COMMUTERS_PER_INCIDENT = 150      # vehicles affected per incident
+    OCCUPANCY_RATE = 1.5                  # avg persons per vehicle
+    AVG_DELAY_MINUTES_PER_INCIDENT = 18   # minutes lost per affected commuter
+    COST_PER_HOUR_INR = 200               # avg rupee value of 1 person-hour
+    FUEL_WASTE_LITERS_PER_INCIDENT = 2.5  # liters wasted in stop-and-go
+    FUEL_PRICE_INR = 103                  # per liter (Bengaluru avg)
+
+    # Scale by event type
+    scale = {
+        'public_event': 1.0,
+        'vip_movement': 0.6,
+        'religious': 1.2,
+        'sports': 1.5,
+        'construction': 0.4,
+        'protest': 0.8,
+    }.get(event_type, 1.0)
+
+    affected_vehicles = int(total_incidents * AVG_COMMUTERS_PER_INCIDENT * scale)
+    affected_persons = int(affected_vehicles * OCCUPANCY_RATE)
+    delay_hours = round((total_incidents * AVG_DELAY_MINUTES_PER_INCIDENT * scale) / 60, 1)
+    person_hours_lost = round(affected_persons * (delay_hours / max(1, total_incidents)), 1)
+    economic_cost_inr = int(person_hours_lost * COST_PER_HOUR_INR)
+    fuel_liters_wasted = round(total_incidents * FUEL_WASTE_LITERS_PER_INCIDENT * scale, 1)
+    fuel_cost_inr = int(fuel_liters_wasted * FUEL_PRICE_INR)
+    total_cost_inr = economic_cost_inr + fuel_cost_inr
+
+    # Surcharge recommendation (for event organisers)
+    if total_cost_inr > 1_000_000:
+        surcharge_recommendation = f"HIGH IMPACT: Recommend ₹{total_cost_inr // 10:,} organiser surcharge for city infrastructure"
+    elif total_cost_inr > 300_000:
+        surcharge_recommendation = f"MEDIUM IMPACT: Recommend ₹{total_cost_inr // 20:,} organiser surcharge"
+    else:
+        surcharge_recommendation = "LOW IMPACT: No surcharge required"
+
+    return {
+        "affected_commuters": affected_persons,
+        "person_hours_lost": person_hours_lost,
+        "economic_cost_inr": economic_cost_inr,
+        "fuel_liters_wasted": fuel_liters_wasted,
+        "fuel_cost_inr": fuel_cost_inr,
+        "total_cost_inr": total_cost_inr,
+        "surcharge_recommendation": surcharge_recommendation,
+        "summary": (
+            f"{affected_persons:,} commuters affected, "
+            f"{person_hours_lost:.0f} person-hours lost, "
+            f"₹{total_cost_inr:,} total economic impact"
+        )
+    }
+
+
+def predict_multi_event(
+    events: list,
+    compounding_penalty: float = 0.15
+) -> dict:
+    """
+    Day 6: Accept a list of events and predict combined impact with compounding
+    penalties when multiple events overlap in time/space.
+
+    Each event in the list is a dict with keys matching predict_event_impact() args:
+      event_type, latitude, longitude, zone, start_time, duration_hours
+    """
+    from utils.geo import haversine_distance
+
+    if not events:
+        return {"error": "No events provided"}
+
+    individual_results = []
+    for evt in events:
+        result = predict_event_impact(
+            event_type=evt.get('event_type', 'public_event'),
+            latitude=evt['latitude'],
+            longitude=evt['longitude'],
+            zone=evt.get('zone', 'Central'),
+            start_time=evt['start_time'],
+            duration_hours=evt.get('duration_hours', 3.0)
+        )
+        individual_results.append({
+            'event': evt,
+            'prediction': result
+        })
+
+    # Detect spatial overlaps (events within 5km of each other)
+    overlap_pairs = []
+    for i in range(len(events)):
+        for j in range(i + 1, len(events)):
+            dist = haversine_distance(
+                events[i]['latitude'], events[i]['longitude'],
+                events[j]['latitude'], events[j]['longitude']
+            )
+            if dist <= 5.0:
+                overlap_pairs.append((i, j, round(dist, 2)))
+
+    # Combine totals with compounding penalty for each overlap
+    base_total = sum(r['prediction']['total_incidents'] for r in individual_results)
+    penalty_multiplier = 1.0 + (len(overlap_pairs) * compounding_penalty)
+    combined_total = int(round(base_total * penalty_multiplier))
+
+    combined_confidence = round(
+        min(r['prediction']['confidence'] for r in individual_results) * (1 - 0.05 * len(overlap_pairs)),
+        2
+    ) if individual_results else 0.0
+
+    return {
+        "num_events": len(events),
+        "individual_results": individual_results,
+        "overlap_pairs": [
+            {"event_a": i, "event_b": j, "distance_km": d}
+            for i, j, d in overlap_pairs
+        ],
+        "combined_total_incidents": combined_total,
+        "compounding_penalty_applied": len(overlap_pairs) > 0,
+        "penalty_multiplier": round(penalty_multiplier, 2),
+        "combined_confidence": combined_confidence,
+        "summary": (
+            f"{len(events)} events, {len(overlap_pairs)} spatial overlaps detected. "
+            f"Combined predicted incidents: {combined_total} "
+            f"(vs {base_total} without compounding)"
+        )
+    }
+
 
 if __name__ == "__main__":
     result = predict_event_impact(
@@ -191,3 +388,14 @@ if __name__ == "__main__":
     print("Prediction Result:")
     for k, v in result.items():
         print(f"  {k}: {v}")
+
+    print("\n--- Historical Replay ---")
+    replay = get_historical_replay("FKID000040")
+    for k, v in replay.items():
+        print(f"  {k}: {v}")
+
+    print("\n--- Economic Impact ---")
+    econ = get_economic_impact(result['total_incidents'], 4.0, 'public_event')
+    for k, v in econ.items():
+        print(f"  {k}: {v}")
+
