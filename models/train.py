@@ -8,9 +8,12 @@ from sklearn.metrics import mean_absolute_error, r2_score
 
 try:
     from xgboost import XGBRegressor
-except ImportError:
-    print("xgboost not installed. Run: pip install xgboost")
-    sys.exit(1)
+    USE_XGBOOST = True
+    print("Using XGBoost model.")
+except Exception:
+    from sklearn.ensemble import GradientBoostingRegressor
+    USE_XGBOOST = False
+    print("XGBoost unavailable (libomp missing?). Falling back to sklearn GradientBoostingRegressor.")
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -39,17 +42,27 @@ def train_model(training_data_path=None):
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    model = XGBRegressor(
-        n_estimators=200,
-        max_depth=6,
-        learning_rate=0.1,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=42,
-        objective='reg:squarederror'
-    )
+    if USE_XGBOOST:
+        model = XGBRegressor(
+            n_estimators=200,
+            max_depth=6,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=42,
+            objective='reg:squarederror'
+        )
+        print("Training XGBoost model...")
+    else:
+        model = GradientBoostingRegressor(
+            n_estimators=200,
+            max_depth=6,
+            learning_rate=0.1,
+            subsample=0.8,
+            random_state=42
+        )
+        print("Training GradientBoostingRegressor (sklearn fallback)...")
 
-    print("Training XGBoost model...")
     model.fit(X_train, y_train)
 
     y_pred = model.predict(X_test)
