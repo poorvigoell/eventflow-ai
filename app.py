@@ -1,12 +1,11 @@
 import streamlit as st
 import osmnx as ox
-import pydeck as pdk
 import os
 import graph.simulator as sim
-from visualization.shockwave import get_shockwave_layers
 from visualization.timeline import render_timeline
 from visualization.command_center import render_command_center
 from visualization.digital_twin import render_digital_twin
+from visualization.map_view import render_folium_map
 from models.predict import predict_event_impact
 
 st.set_page_config(
@@ -84,7 +83,7 @@ with st.spinner('Loading City Digital Twin Graph...'):
 def get_road_options(_G):
     if _G is None:
         return {"None": None}
-    roads = sim.get_major_roads(_G, num_roads=15)
+    roads = sim.get_major_roads(_G, num_roads=100)
     options = {"None": None}
     options.update(roads)
     return options
@@ -95,18 +94,43 @@ st.sidebar.markdown('<div class="logo-text">EventFlow AI</div>', unsafe_allow_ht
 st.sidebar.markdown('<div class="logo-sub">City-Scale Traffic Simulator</div>', unsafe_allow_html=True)
 
 st.sidebar.markdown("### 🎛️ Event Settings")
-event_type_ui = st.sidebar.selectbox("Event Category", ["🏟️ Cricket Match", "🚨 VIP Movement", "🎤 Public Concert"])
-venue = st.sidebar.selectbox("Target Venue", ["M Chinnaswamy Stadium", "Kanteerava Stadium"])
+event_type_ui = st.sidebar.selectbox("Event Category", [
+    "🏟️ Cricket Match", 
+    "🚨 VIP Movement", 
+    "🎤 Public Concert",
+    "📢 Protest/Rally",
+    "🚧 Road Construction",
+    "🕌 Religious Procession",
+    "🌳 Tree Fall/Blockage"
+])
+venue = st.sidebar.selectbox("Target Venue / Location", [
+    "M Chinnaswamy Stadium (Central)", 
+    "Kanteerava Stadium (Central)",
+    "Freedom Park (Central)",
+    "Manyata Tech Park (North)",
+    "Phoenix Marketcity Mall (East)",
+    "Lalbagh Botanical Garden (South)",
+    "IIM Bangalore (South)"
+])
 
 event_type_map = {
     "🏟️ Cricket Match": "sports",
     "🚨 VIP Movement": "vip_movement",
-    "🎤 Public Concert": "public_event"
+    "🎤 Public Concert": "public_event",
+    "📢 Protest/Rally": "protest",
+    "🚧 Road Construction": "construction",
+    "🕌 Religious Procession": "religious",
+    "🌳 Tree Fall/Blockage": "tree_fall"
 }
 
 venue_coords = {
-    "M Chinnaswamy Stadium": {"lat": 12.9788, "lng": 77.5996, "zone": "Central"},
-    "Kanteerava Stadium": {"lat": 12.9694, "lng": 77.5938, "zone": "Central"}
+    "M Chinnaswamy Stadium (Central)": {"lat": 12.9788, "lng": 77.5996, "zone": "Central"},
+    "Kanteerava Stadium (Central)": {"lat": 12.9694, "lng": 77.5938, "zone": "Central"},
+    "Freedom Park (Central)": {"lat": 12.9782, "lng": 77.5815, "zone": "Central"},
+    "Manyata Tech Park (North)": {"lat": 13.0450, "lng": 77.6200, "zone": "North"},
+    "Phoenix Marketcity Mall (East)": {"lat": 12.9958, "lng": 77.6963, "zone": "East"},
+    "Lalbagh Botanical Garden (South)": {"lat": 12.9507, "lng": 77.5844, "zone": "South"},
+    "IIM Bangalore (South)": {"lat": 12.8950, "lng": 77.6010, "zone": "South"}
 }
 
 lat = venue_coords[venue]["lat"]
@@ -224,25 +248,14 @@ with tab_live:
 
         st.markdown("### 🌐 Live Road Network")
 
-        pitch = 50 if "3D" in view_mode else 0
-        bearing = -15 if "3D" in view_mode else 0
-
-        view_state = pdk.ViewState(
-            latitude=lat,
-            longitude=lng,
-            zoom=14.5,
-            pitch=pitch,
-            bearing=bearing
+        render_folium_map(
+            lat=lat,
+            lng=lng,
+            prediction_data=prediction_data,
+            critical_roads=critical_roads,
+            emergency_routes=emergency_routes,
+            height=500,
         )
-
-        layers = get_shockwave_layers(lat, lng, prediction_data, critical_roads, emergency_routes)
-
-        st.pydeck_chart(pdk.Deck(
-            map_style=None,
-            initial_view_state=view_state,
-            layers=layers,
-            tooltip={"text": "{name}"}
-        ))
         
         if G is None:
             st.error("Graph data not found. Please run `python graph/build_network.py`.")

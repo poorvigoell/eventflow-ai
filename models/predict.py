@@ -52,20 +52,19 @@ def predict_event_impact(
     day_of_week = start_dt.dayofweek
 
     cause_map = {
-        'public_event': 0, 'construction': 1, 'protest': 2,
-        'vip_movement': 3, 'religious': 4, 'sports': 5
+        'construction': 0, 'others': 1, 'procession': 2, 'protest': 3,
+        'public_event': 4, 'tree_fall': 5, 'vehicle_breakdown': 6, 'vip_movement': 7,
+        'sports': 4, 'religious': 2
     }
     cause_code = cause_map.get(event_type, 0)
 
     zone_map = {
-        'North': 0, 'South': 1, 'East': 2, 'West': 3, 'Central': 4,
-        'North Zone 1': 0, 'North Zone 2': 0,
-        'South Zone 1': 1, 'South Zone 2': 1,
-        'East Zone 1': 2, 'East Zone 2': 2,
-        'West Zone 1': 3, 'West Zone 2': 3,
-        'Central Zone 1': 4, 'Central Zone 2': 4,
+        'Central': 0, 'Central Zone 1': 1, 'Central Zone 2': 2, 'East': 3,
+        'East Zone 1': 4, 'East Zone 2': 5, 'North': 6, 'North Zone 1': 7,
+        'North Zone 2': 8, 'South': 9, 'South Zone 1': 10, 'South Zone 2': 11,
+        'Unknown': 12, 'West': 13, 'West Zone 1': 14, 'West Zone 2': 15
     }
-    zone_code = zone_map.get(zone, 4)
+    zone_code = zone_map.get(zone, 0)
 
     priority_code = 1
 
@@ -153,11 +152,11 @@ def get_phase_timeline(total_incidents: int, start_time: str, duration_hours: fl
     timeline = []
     
     # 2 hours before (Inflow)
-    timeline.append({"time": (start_hour - pd.Timedelta(hours=2)).strftime('%H:%M'), "count": max(0, int(total_incidents * 0.1)), "phase": "inflow"})
-    timeline.append({"time": (start_hour - pd.Timedelta(hours=1)).strftime('%H:%M'), "count": max(0, int(total_incidents * 0.2)), "phase": "inflow"})
+    timeline.append({"time": (start_hour - pd.Timedelta(hours=2)).strftime('%H:%M'), "count": max(0, round(total_incidents * 0.1)), "phase": "inflow"})
+    timeline.append({"time": (start_hour - pd.Timedelta(hours=1)).strftime('%H:%M'), "count": max(0, round(total_incidents * 0.2)), "phase": "inflow"})
     
     # During (Steady)
-    steady_count_per_hour = max(0, int((total_incidents * 0.45) / max(1, duration_hours)))
+    steady_count_per_hour = max(0, round((total_incidents * 0.45) / max(1, duration_hours)))
     for h in range(int(max(1, duration_hours))):
         timeline.append({
             "time": (start_hour + pd.Timedelta(hours=h)).strftime('%H:%M'), 
@@ -167,9 +166,21 @@ def get_phase_timeline(total_incidents: int, start_time: str, duration_hours: fl
         
     # 2 hours after (Exodus)
     end_hour = start_hour + pd.Timedelta(hours=duration_hours)
-    timeline.append({"time": (end_hour).strftime('%H:%M'), "count": max(0, int(total_incidents * 0.15)), "phase": "exodus"})
-    timeline.append({"time": (end_hour + pd.Timedelta(hours=1)).strftime('%H:%M'), "count": max(0, int(total_incidents * 0.1)), "phase": "exodus"})
+    timeline.append({"time": (end_hour).strftime('%H:%M'), "count": max(0, round(total_incidents * 0.15)), "phase": "exodus"})
+    timeline.append({"time": (end_hour + pd.Timedelta(hours=1)).strftime('%H:%M'), "count": max(0, round(total_incidents * 0.1)), "phase": "exodus"})
     
+    # Ensure that if total_incidents > 0, we don't have a completely empty timeline
+    total_distributed = sum(item["count"] for item in timeline)
+    if total_distributed < total_incidents:
+        diff = total_incidents - total_distributed
+        # Add the remaining incidents to the peak steady phase hours
+        steady_start_idx = 2
+        steady_hours = int(max(1, duration_hours))
+        for i in range(diff):
+            idx = steady_start_idx + (i % steady_hours)
+            if idx < len(timeline):
+                timeline[idx]["count"] += 1
+                
     return timeline
 
 def get_historical_replay(event_id: str) -> dict:
