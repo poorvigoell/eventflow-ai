@@ -100,6 +100,19 @@ METRO_CORRIDORS = {
         (12.9462, 77.5918), (12.9393, 77.5934), (12.9262, 77.5968),
         (12.9100, 77.5918), (12.8987, 77.5972),
     ],
+    "Yellow": [
+        (12.9262, 77.5968), (12.9180, 77.5980), (12.9100, 77.6040),
+        (12.9030, 77.6180), (12.8950, 77.6290), (12.8870, 77.6410),
+        (12.8760, 77.6530), (12.8640, 77.6620), (12.8550, 77.6640),
+        (12.8360, 77.6710), (12.8100, 77.6850)
+    ],
+    "Pink": [
+        (12.8930, 77.5980), (12.9050, 77.6000), (12.9150, 77.6020),
+        (12.9250, 77.6050), (12.9370, 77.6100), (12.9490, 77.6150),
+        (12.9600, 77.6190), (12.9720, 77.6150), (12.9840, 77.6100),
+        (12.9950, 77.6050), (13.0070, 77.6000), (13.0200, 77.5950),
+        (13.0300, 77.5920), (13.0450, 77.5980)
+    ]
 }
 
 
@@ -136,4 +149,19 @@ def get_metro_corridor_points(lat: float, lng: float, radius_km: float = 3.0) ->
         for (wlat, wlng) in waypoints:
             if _haversine_km(lat, lng, wlat, wlng) <= radius_km:
                 results.append({"lat": wlat, "lng": wlng, "line": line})
+    return results
+
+def get_metro_corridors_lines() -> list[dict]:
+    """
+    Return all metro corridors formatted as Polylines for the frontend map.
+    Each item: { name, color, coordinates: [[lat, lng], ...] }
+    """
+    results = []
+    colors = {"Purple": "#800080", "Green": "#008000", "Yellow": "#FFD700", "Pink": "#FF69B4"}
+    for line, waypoints in METRO_CORRIDORS.items():
+        results.append({
+            "name": f"{line} Line",
+            "color": colors.get(line, "#00d2ff"),
+            "coordinates": [[lat, lng] for lat, lng in waypoints]
+        })
     return results

@@ -144,7 +144,7 @@ def _path_travel_time(G, path):
     return total
 
 
-def get_high_risk_junctions_graph(G, lat, lng, total_incidents, max_junctions=5, radius=2000):
+def get_high_risk_junctions_graph(G, lat, lng, total_incidents, max_junctions=5, radius=1000):
     """
     Identify nearby high-risk junctions using graph centrality and event location.
     """
@@ -310,9 +310,12 @@ def get_critical_roads(G, lat, lng, radius=1000):
                 v_data = subgraph.nodes[v]
                 coords = [(u_data['x'], u_data['y']), (v_data['x'], v_data['y'])]
             
+            # Leaflet expects [lat, lng], but osmnx gives (x, y) which is (lng, lat)
+            flipped_coords = [[y, x] for x, y in coords]
+            
             critical_paths.append({
-                "path": coords,
-                "score": score
+                "coordinates": flipped_coords,
+                "weight": score
             })
             if len(critical_paths) >= 5:
                 break
