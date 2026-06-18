@@ -151,17 +151,18 @@ if parsed_nlp:
         if v_lower in v.lower() or v.lower() in v_lower or v_lower.split()[0] in v.lower():
             st.session_state['selected_venue_idx'] = venue_list.index(v)
             break
-            
     e_map_rev = {v: k for k, v in event_type_map.items()}
     if parsed_nlp['event_type'] in e_map_rev:
         st.session_state['selected_event_idx'] = event_types.index(e_map_rev[parsed_nlp['event_type']])
 
 # Default Indices
 evt_idx = st.session_state.get('selected_event_idx', 0)
-ven_idx = st.session_state.get('selected_venue_idx', 0)
 
 event_type_ui = st.sidebar.selectbox("Event Category", event_types, index=evt_idx)
-venue = st.sidebar.selectbox("Target Venue / Location", venue_list, index=ven_idx)
+
+st.sidebar.markdown("#### 📍 Location")
+st.sidebar.info("👉 **Click anywhere on the map** in the Digital Twin tab to set the exact location.")
+
 
 st.sidebar.markdown("#### 🕒 Event Schedule")
 import datetime
@@ -175,20 +176,17 @@ duration_val = st.sidebar.slider("Duration (Hours)", min_value=1.0, max_value=12
 
 start_time_val = f"{event_date} {event_time}"
 event_type_key = event_type_map[event_type_ui]
+if 'custom_lat' not in st.session_state:
+    # Default to center of Bengaluru (M Chinnaswamy Stadium)
+    st.session_state['custom_lat'] = 12.9788
+    st.session_state['custom_lng'] = 77.5996
+    st.session_state['custom_zone'] = "Central"
 
-venue_coords = {
-    "M Chinnaswamy Stadium (Central)": {"lat": 12.9788, "lng": 77.5996, "zone": "Central"},
-    "Kanteerava Stadium (Central)": {"lat": 12.9694, "lng": 77.5938, "zone": "Central"},
-    "Freedom Park (Central)": {"lat": 12.9782, "lng": 77.5815, "zone": "Central"},
-    "Manyata Tech Park (North)": {"lat": 13.0450, "lng": 77.6200, "zone": "North"},
-    "Phoenix Marketcity Mall (East)": {"lat": 12.9958, "lng": 77.6963, "zone": "East"},
-    "Lalbagh Botanical Garden (South)": {"lat": 12.9507, "lng": 77.5844, "zone": "South"},
-    "IIM Bangalore (South)": {"lat": 12.8950, "lng": 77.6010, "zone": "South"}
-}
+lat = st.session_state['custom_lat']
+lng = st.session_state['custom_lng']
+zone = st.session_state['custom_zone']
+venue = f"Map Location ({lat:.4f}, {lng:.4f})"
 
-lat = venue_coords[venue]["lat"]
-lng = venue_coords[venue]["lng"]
-zone = venue_coords[venue]["zone"]
 
 # Fetch nearby transit POIs for the selected venue
 @st.cache_data
@@ -364,7 +362,7 @@ with tab_live:
 
         live_lines = fetch_live_traffic(lat, lng) if live_traffic_mode else None
 
-        render_folium_map(
+        map_data = render_folium_map(
             lat=lat,
             lng=lng,
             prediction_data=prediction_data,
@@ -376,6 +374,25 @@ with tab_live:
             transit_points=transit_points,
         )
         
+        if map_data and map_data.get("last_clicked"):
+            click_lat = map_data["last_clicked"]["lat"]
+            click_lng = map_data["last_clicked"]["lng"]
+            # Only update and rerun if the coordinates actually changed
+            if st.session_state.get('custom_lat') != click_lat or st.session_state.get('custom_lng') != click_lng:
+                st.session_state['custom_lat'] = click_lat
+                st.session_state['custom_lng'] = click_lng
+                # Simple zone heuristic based on latitude
+                if click_lat > 13.01:
+                    st.session_state['custom_zone'] = "North"
+                elif click_lat < 12.94:
+                    st.session_state['custom_zone'] = "South"
+                elif click_lng > 77.64:
+                    st.session_state['custom_zone'] = "East"
+                else:
+                    st.session_state['custom_zone'] = "Central"
+                st.rerun()
+        
+
         if G is None:
             st.error("Graph data not found. Please run `python graph/build_network.py`.")
             

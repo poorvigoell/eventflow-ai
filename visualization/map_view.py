@@ -41,6 +41,24 @@ def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_
         prefer_canvas=True,
     )
 
+    import os
+    import json
+    boundary_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "graph", "bengaluru_boundary.geojson")
+    if os.path.exists(boundary_path):
+        try:
+            with open(boundary_path, "r") as f:
+                boundary_data = json.load(f)
+            folium.GeoJson(
+                boundary_data,
+                name="Bengaluru Boundary",
+                style_function=lambda x: {'color': '#00d2ff', 'weight': 2, 'fillColor': 'transparent', 'dashArray': '5, 5'},
+                interactive=False
+            ).add_to(m)
+        except Exception as e:
+            pass
+
+
+
     # --- Impact zone rings ---
     zones = [
         {"radius": 2500, "color": "#ff4b2b", "fill_opacity": 0.05, "label": "Outer Risk Zone (2.5km)"},
@@ -48,7 +66,7 @@ def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_
         {"radius": 800,  "color": "#ffbb00", "fill_opacity": 0.12, "label": "Critical Congestion Zone (800m)"},
     ]
     for z in zones:
-        folium.Circle(
+        circle = folium.Circle(
             location=[lat, lng],
             radius=z["radius"],
             color=z["color"],
@@ -57,16 +75,20 @@ def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_
             fill_color=z["color"],
             fill_opacity=z["fill_opacity"],
             tooltip=z["label"],
-        ).add_to(m)
+        )
+        # Prevent circle overlays from capturing pointer events
+        circle.options['interactive'] = False
+        circle.add_to(m)
 
-    # --- Venue pin ---
-    folium.CircleMarker(
+    # --- Venue pin (emoji marker) ---
+    pin_icon = folium.DivIcon(
+        html='<div style="font-size: 32px; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.5); transform: translate(-12px, -32px);">📍</div>',
+        icon_size=(32, 32),
+        icon_anchor=(0, 0),
+    )
+    folium.Marker(
         location=[lat, lng],
-        radius=9,
-        color="#ff416c",
-        fill=True,
-        fill_color="#ff416c",
-        fill_opacity=1.0,
+        icon=pin_icon,
         tooltip=f"📍 {venue_name}",
         popup="Event Venue",
     ).add_to(m)
@@ -116,25 +138,22 @@ def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_
 
     # --- Transit Infrastructure POIs ---
     if transit_points:
+        _transit_emoji = {"metro": "🚇", "bus": "🚌", "parking": "🅿️"}
+        _transit_colors = {"metro": "#a855f7", "bus": "#3b82f6", "parking": "#22c55e"}
         for pt in transit_points:
             pt_type = pt.get("type", "bus")
-            if pt_type == "metro":
-                icon_color = "purple"
-                icon_symbol = "subway"
-                prefix = "fa"
-            elif pt_type == "bus":
-                icon_color = "blue"
-                icon_symbol = "bus"
-                prefix = "fa"
-            else: # parking
-                icon_color = "green"
-                icon_symbol = "square" # fallback for standard parking sign
-                prefix = "fa"
-            
+            emoji = _transit_emoji.get(pt_type, "📌")
+            bg = _transit_colors.get(pt_type, "#666")
+            dist_label = f" ({pt['dist_km']} km)" if "dist_km" in pt else ""
+            poi_icon = folium.DivIcon(
+                html=f'<div style="font-size:18px;background:{bg};border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,0.4);border:2px solid #fff;">{emoji}</div>',
+                icon_size=(28, 28),
+                icon_anchor=(14, 14),
+            )
             folium.Marker(
                 location=[pt["lat"], pt["lng"]],
-                tooltip=pt["name"],
-                icon=folium.Icon(color=icon_color, icon=icon_symbol, prefix=prefix)
+                tooltip=f"{emoji} {pt['name']}{dist_label}",
+                icon=poi_icon,
             ).add_to(m)
 
     # --- High-risk junctions ---
@@ -150,12 +169,15 @@ def render_folium_map(lat, lng, prediction_data, critical_roads=None, emergency_
                 tooltip=f"⚠️ Junction: {j['name']} (Risk: {j['risk_score']})",
             ).add_to(m)
 
-    # st_folium automatically triggers a rerun on zoom/pan events.
+    # st_folium automatically triggers a rerun on zoom/pan/click events.
     # We update session_state values silently so they are used on the next automatic rerun.
-    map_data = st_folium(m, width="100%", height=height, returned_objects=["zoom", "center"])
+    map_data = st_folium(m, width="100%", height=height, returned_objects=["zoom", "center", "last_clicked"], key="main_map")
     
     if map_data:
         if "zoom" in map_data and map_data["zoom"] is not None:
             st.session_state.map_zoom = map_data["zoom"]
         if "center" in map_data and map_data["center"] is not None:
             st.session_state.map_center = [map_data["center"]["lat"], map_data["center"]["lng"]]
+
+    return map_data
+
