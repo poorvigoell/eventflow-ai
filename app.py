@@ -2,6 +2,8 @@ import streamlit as st
 import osmnx as ox
 import os
 import graph.simulator as sim
+import graph.build_network as build_network
+from models.train import train_model
 from visualization.timeline import render_timeline
 from visualization.command_center import render_command_center
 from visualization.digital_twin import render_digital_twin
@@ -16,6 +18,25 @@ from visualization.transit_view import render_transit_view
 from utils.live_traffic import fetch_live_traffic
 from utils.transit_infrastructure import get_transit_pois
 import json
+
+
+def _first_time_setup():
+    graph_path = os.path.join(os.path.dirname(__file__), "graph", "bengaluru_network.graphml")
+    model_dir = os.path.join(os.path.dirname(__file__), "models", "saved")
+    model_path = os.path.join(model_dir, "xgb_incident_model.joblib")
+    meta_path = os.path.join(model_dir, "model_meta.joblib")
+
+    if not os.path.exists(graph_path):
+        with st.spinner("First-run setup: downloading and caching the city graph. This may take several minutes..."):
+            build_network.download_and_cache_graph()
+
+    if not os.path.exists(model_path) or not os.path.exists(meta_path):
+        os.makedirs(model_dir, exist_ok=True)
+        with st.spinner("First-run setup: training the incident prediction model. This may take several minutes..."):
+            train_model()
+
+
+_first_time_setup()
 
 st.set_page_config(
     page_title="EventFlow AI - Command Center",
@@ -39,6 +60,70 @@ st.markdown("""
     section[data-testid="stSidebar"] {
         background-color: var(--secondary-background-color) !important;
         border-right: 1px solid rgba(128, 128, 128, 0.1);
+    }
+
+    .tooltip {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-color);
+        cursor: help;
+        font-size: 0.9rem;
+        z-index: 2;
+    }
+
+    .tooltip::after {
+        content: attr(data-tooltip);
+        visibility: hidden;
+        opacity: 0;
+        width: 240px;
+        max-width: 240px;
+        padding: 10px;
+        border-radius: 10px;
+        background: rgba(20, 22, 29, 0.95);
+        color: #fff;
+        font-size: 0.78rem;
+        line-height: 1.4;
+        text-align: left;
+        position: absolute;
+        top: 50%;
+        right: 100%;
+        transform: translate(0, -50%) translateX(10px);
+        transition: opacity 0.18s ease, transform 0.18s ease;
+        white-space: pre-wrap;
+        z-index: 10;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+    }
+
+    .tooltip:hover::after {
+        visibility: visible;
+        opacity: 1;
+        transform: translate(0, -50%) translateX(0);
+    }
+
+    .tooltip::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: calc(100% - 4px);
+        transform: translateY(-50%);
+        border-width: 6px 6px 6px 0;
+        border-style: solid;
+        border-color: transparent rgba(20, 22, 29, 0.95) transparent transparent;
+        opacity: 0;
+        transition: opacity 0.18s ease;
+        z-index: 11;
+    }
+
+    .tooltip:hover::before {
+        opacity: 1;
     }
 
     .logo-text {
@@ -249,7 +334,10 @@ if weather_rain:
 # Re-calculate timeline based on final compounded/weather totals
 from models.predict import get_phase_timeline, get_high_risk_junctions
 prediction_data['timeline'] = get_phase_timeline(prediction_data['total_incidents'], start_time_val, duration_val)
-prediction_data['high_risk_junctions'] = get_high_risk_junctions(lat, lng, prediction_data['total_incidents'])
+if G is not None:
+    prediction_data['high_risk_junctions'] = sim.get_high_risk_junctions_graph(G, lat, lng, prediction_data['total_incidents'])
+else:
+    prediction_data['high_risk_junctions'] = get_high_risk_junctions(lat, lng, prediction_data['total_incidents'])
 
 # Extract timeline before passing prediction_data to visualizations that don't expect it
 raw_timeline = prediction_data.pop("timeline", [])
@@ -404,7 +492,14 @@ with tab_live:
 
 with tab_tactical:
     st.markdown("## 📋 Deployment & Tactical Plan")
-    tactical = get_tactical_recommendation(prediction_data['total_incidents'], prediction_data.get('high_risk_junctions', []), duration_val)
+    tactical = get_tactical_recommendation(
+        prediction_data['total_incidents'],
+        prediction_data.get('high_risk_junctions', []),
+        duration_val,
+        G=G,
+        latitude=lat,
+        longitude=lng
+    )
     
     # Timeline Alert Box
     timeline_text = tactical.get("deployment_timeline", "Deploy 45 min before event start")
@@ -424,32 +519,38 @@ with tab_tactical:
         # Grid of cards
         st.markdown(f"""
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 20px;">
-            <div style="background: rgba(0, 210, 255, 0.06); border: 1px solid rgba(0, 210, 255, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="position: relative; background: rgba(0, 210, 255, 0.06); border: 1px solid rgba(0, 210, 255, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span class="tooltip" data-tooltip="Traffic police are estimated from the event size, the number of high-risk junctions, and predicted incident volume. More predicted incidents and more risky intersections increase the recommended count.">ℹ️</span>
                 <span style="font-size: 1.5rem;">👮</span>
                 <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Traffic Police</div>
                 <h3 style="margin: 5px 0 0 0; color: #00d2ff; font-size: 1.8rem; font-weight: 800;">{mp['traffic_police']}</h3>
             </div>
-            <div style="background: rgba(58, 123, 213, 0.06); border: 1px solid rgba(58, 123, 213, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="position: relative; background: rgba(58, 123, 213, 0.06); border: 1px solid rgba(58, 123, 213, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span class="tooltip" data-tooltip="Patrol vehicles are derived from the number of risky intersections and event pressure. They keep secondary corridors clear and support traffic police on busy roads.">ℹ️</span>
                 <span style="font-size: 1.5rem;">🚓</span>
                 <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Patrols</div>
                 <h3 style="margin: 5px 0 0 0; color: #3a7bd5; font-size: 1.8rem; font-weight: 800;">{mp['patrol_vehicles']}</h3>
             </div>
-            <div style="background: rgba(0, 230, 118, 0.06); border: 1px solid rgba(0, 230, 118, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="position: relative; background: rgba(0, 230, 118, 0.06); border: 1px solid rgba(0, 230, 118, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span class="tooltip" data-tooltip="Ambulances are allocated based on predicted incident count, with at least one unit ready to respond to medical emergencies at the event site.">ℹ️</span>
                 <span style="font-size: 1.5rem;">🚑</span>
                 <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Ambulances</div>
                 <h3 style="margin: 5px 0 0 0; color: #00e676; font-size: 1.8rem; font-weight: 800;">{mp['ambulances']}</h3>
             </div>
-            <div style="background: rgba(255, 187, 0, 0.06); border: 1px solid rgba(255, 187, 0, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="position: relative; background: rgba(255, 187, 0, 0.06); border: 1px solid rgba(255, 187, 0, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span class="tooltip" data-tooltip="Tow trucks are scaled with expected incidents where disabled vehicles or breakdowns may block traffic, helping clear lanes quickly.">ℹ️</span>
                 <span style="font-size: 1.5rem;">🚜</span>
                 <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Tow Trucks</div>
                 <h3 style="margin: 5px 0 0 0; color: #ffbb00; font-size: 1.8rem; font-weight: 800;">{mp['tow_trucks']}</h3>
             </div>
-            <div style="background: rgba(255, 75, 43, 0.06); border: 1px solid rgba(255, 75, 43, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="position: relative; background: rgba(255, 75, 43, 0.06); border: 1px solid rgba(255, 75, 43, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span class="tooltip" data-tooltip="Barricade teams are assigned to the most critical high-risk junctions in the network and are timed to protect those intersections before the event begins.">ℹ️</span>
                 <span style="font-size: 1.5rem;">🚧</span>
                 <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Barricades</div>
                 <h3 style="margin: 5px 0 0 0; color: #ff4b2b; font-size: 1.8rem; font-weight: 800;">{mp['barricade_teams']}</h3>
             </div>
-            <div style="background: rgba(128, 0, 128, 0.06); border: 1px solid rgba(128, 0, 128, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+            <div style="position: relative; background: rgba(128, 0, 128, 0.06); border: 1px solid rgba(128, 0, 128, 0.15); border-radius: 8px; padding: 12px; text-align: center;">
+                <span class="tooltip" data-tooltip="Total units adds together all recommended resources so you can see overall operational scale at a glance.">ℹ️</span>
                 <span style="font-size: 1.5rem;">📊</span>
                 <div style="font-size: 0.75rem; color: #a0aec0; margin-top: 4px; text-transform: uppercase; font-weight: bold;">Total Units</div>
                 <h3 style="margin: 5px 0 0 0; color: purple; font-size: 1.8rem; font-weight: 800;">{total_units}</h3>

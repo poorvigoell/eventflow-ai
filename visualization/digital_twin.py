@@ -46,7 +46,17 @@ def render_digital_twin(event_id, lat, lng, prediction_data, event_date=None):
             fill_opacity=0.12,
             tooltip="AI Predicted Impact Zone",
         ).add_to(m_pred)
-        folium.CircleMarker(location=[lat, lng], radius=8, color="#00d2ff", fill=True, fill_opacity=1.0).add_to(m_pred)
+        pin_icon = folium.DivIcon(
+            html='<div style="font-size: 32px; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.5); transform: translate(-12px, -32px);">📍</div>',
+            icon_size=(32, 32),
+            icon_anchor=(0, 0),
+        )
+        folium.Marker(
+            location=[lat, lng],
+            icon=pin_icon,
+            tooltip="📍 Predicted Venue",
+            popup="Predicted Event Venue",
+        ).add_to(m_pred)
         st_folium(m_pred, width="100%", height=350, returned_objects=[], key="twin_pred")
         st.metric("Predicted Incidents", replay_data["predicted"])
 
@@ -64,7 +74,17 @@ def render_digital_twin(event_id, lat, lng, prediction_data, event_date=None):
             fill_opacity=0.12,
             tooltip="Actual Ground Truth Zone",
         ).add_to(m_actual)
-        folium.CircleMarker(location=[lat, lng], radius=8, color="#ff4b2b", fill=True, fill_opacity=1.0).add_to(m_actual)
+        pin_icon = folium.DivIcon(
+            html='<div style="font-size: 32px; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.5); transform: translate(-12px, -32px);">📍</div>',
+            icon_size=(32, 32),
+            icon_anchor=(0, 0),
+        )
+        folium.Marker(
+            location=[lat, lng],
+            icon=pin_icon,
+            tooltip="📍 Actual Venue",
+            popup="Actual Event Venue",
+        ).add_to(m_actual)
         st_folium(m_actual, width="100%", height=350, returned_objects=[], key="twin_actual")
         st.metric("Actual Incidents", replay_data["actual"])
 

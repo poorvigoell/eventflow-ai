@@ -3,6 +3,7 @@ import sys
 import joblib
 import pandas as pd
 import numpy as np
+import graph.simulator as sim
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -356,35 +357,40 @@ def get_economic_impact(
 def get_tactical_recommendation(
     total_incidents: int,
     high_risk_junctions: list,
-    duration_hours: float
+    duration_hours: float,
+    G=None,
+    latitude: float = None,
+    longitude: float = None
 ) -> dict:
     """
     Core PS deliverable: Compute manpower deployment, road barricading,
     and diversion routing based on predicted event impact.
     """
+    if G is not None and latitude is not None and longitude is not None:
+        graph_risk = sim.get_high_risk_junctions_graph(G, latitude, longitude, total_incidents)
+        if graph_risk:
+            high_risk_junctions = graph_risk
+
     num_junctions = len(high_risk_junctions)
-    traffic_police = max(4, num_junctions * 4 + (total_incidents // 5) * 2)
-    patrol_vehicles = max(1, num_junctions // 3 + 1)
-    ambulances = max(1, total_incidents // 10) if total_incidents > 0 else 0
-    tow_trucks = max(0, total_incidents // 15)
+    traffic_police = max(4, int(2 + num_junctions * 3 + total_incidents * 0.25))
+    patrol_vehicles = max(1, int(1 + num_junctions * 0.4 + total_incidents * 0.05))
+    ambulances = max(1, int(round(total_incidents * 0.12))) if total_incidents > 0 else 0
+    tow_trucks = max(0, int(round(total_incidents * 0.07)))
     barricade_teams = max(1, num_junctions)
 
-    barricade_roads = []
-    for j in high_risk_junctions[:3]:
-        barricade_roads.append({
-            "road": j["name"],
-            "reason": f"High risk junction ({j['risk_score']*100:.0f}% score)",
-            "timing": f"{max(1, int(duration_hours / 2))}hr before event"
-        })
+    if G is not None:
+        barricade_roads = sim.get_barricade_recommendations(G, high_risk_junctions, duration_hours)
+        diversion_plan = sim.get_diversion_plan(G, latitude, longitude, high_risk_junctions)
+    else:
+        barricade_roads = []
+        for j in high_risk_junctions[:3]:
+            barricade_roads.append({
+                "road": j["name"],
+                "reason": f"High risk junction ({j['risk_score']*100:.0f}% score)",
+                "timing": f"{max(1, int(duration_hours / 2))}hr before event"
+            })
 
-    diversion_templates = [
-        {"from": "MG Road", "via": "Residency Road", "to": "Richmond Circle", "added_time": "+4 min"},
-        {"from": "Cubbon Road", "via": "Kasturba Road", "to": "Hudson Circle", "added_time": "+3 min"},
-        {"from": "JC Road", "via": "KR Road", "to": "Town Hall", "added_time": "+5 min"},
-        {"from": "Race Course Road", "via": "Seshadri Road", "to": "Majestic", "added_time": "+6 min"},
-        {"from": "Infantry Road", "via": "Brigade Road", "to": "Commercial St", "added_time": "+3 min"},
-    ]
-    diversion_plan = diversion_templates[:min(len(barricade_roads) + 1, len(diversion_templates))]
+        diversion_plan = []
 
     if total_incidents > 15:
         timeline = f"Deploy {int(duration_hours)}hr before event start"

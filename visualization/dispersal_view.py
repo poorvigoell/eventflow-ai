@@ -233,10 +233,16 @@ def render_dispersal_tab(
     m = folium.Map(location=[lat, lng], zoom_start=14, tiles="CartoDB dark_matter", prefer_canvas=True)
 
     # Venue pin
-    folium.CircleMarker(
-        location=[lat, lng], radius=9,
-        color="#ff416c", fill=True, fill_opacity=1.0,
+    pin_icon = folium.DivIcon(
+        html='<div style="font-size: 32px; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,0.5); transform: translate(-12px, -32px);">📍</div>',
+        icon_size=(32, 32),
+        icon_anchor=(0, 0),
+    )
+    folium.Marker(
+        location=[lat, lng],
+        icon=pin_icon,
         tooltip="📍 Event Venue",
+        popup="Event Venue",
     ).add_to(m)
 
     # Transit POI markers
@@ -264,16 +270,19 @@ def render_dispersal_tab(
             if reachable_pts:
                 heat_data = _inject_metro_weights(heat_data, reachable_pts, metro_weight)
 
+        # Scale densities for better visibility on the dark basemap.
+        scaled_heat_data = [[lat, lng, min(weight * 30.0, 1.0)] for lat, lng, weight in heat_data]
+
         HeatMap(
-            heat_data,
-            radius=20, blur=15, max_zoom=16,
-            gradient={0.2: "#00d2ff", 0.5: "#ffbb00", 0.8: "#ff4b2b", 1.0: "#ff0000"},
+            scaled_heat_data,
+            radius=35, blur=25, max_zoom=18, min_opacity=0.45,
+            gradient={0.1: "#00d2ff", 0.4: "#ffbb00", 0.7: "#ff4b2b", 1.0: "#ff0000"},
         ).add_to(m)
 
-    # Render map as raw HTML via st.components to guarantee correct sizing
+    # Render map in an iframe for better Streamlit compatibility
     from streamlit.components.v1 import html as st_html
     map_html = m._repr_html_()
-    st_html(map_html, height=480)
+    st_html(map_html, height=520)
 
     # ── Economic panel + corridor info below the map ─────────────────────
     st.markdown("---")

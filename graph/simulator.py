@@ -90,6 +90,200 @@ def get_major_roads(G, num_roads=10):
                     break
     return road_dict
 
+
+def get_edge_name(edge_data):
+    name = edge_data.get('name')
+    if isinstance(name, list):
+        name = name[0] if name else None
+
+    if not name or name == 'Unknown Road':
+        highway = edge_data.get('highway')
+        if isinstance(highway, list):
+            highway = highway[0]
+        if highway:
+            name = f"{highway.title()} Road"
+        else:
+            name = "Unnamed Road"
+
+    return name
+
+
+def find_nearest_node(G, lat, lng):
+    try:
+        return ox.distance.nearest_nodes(G, X=lng, Y=lat)
+    except Exception:
+        return min(
+            G.nodes(),
+            key=lambda n: (G.nodes[n].get('x', 0) - lng) ** 2 + (G.nodes[n].get('y', 0) - lat) ** 2
+        )
+
+
+def _path_road_names(G, path):
+    """Return cleaned road names along a node path."""
+    road_names = []
+    for u, v in zip(path[:-1], path[1:]):
+        edge_data = G.get_edge_data(u, v)
+        if not edge_data:
+            continue
+        # Select the first available edge key
+        first_key = next(iter(edge_data))
+        name = get_edge_name(edge_data[first_key])
+        if name and (not road_names or name != road_names[-1]):
+            road_names.append(name)
+    return road_names
+
+
+def _path_travel_time(G, path):
+    total = 0.0
+    for u, v in zip(path[:-1], path[1:]):
+        edge_data = G.get_edge_data(u, v)
+        if not edge_data:
+            continue
+        first_key = next(iter(edge_data))
+        total += edge_data[first_key].get('travel_time', 1.0)
+    return total
+
+
+def get_high_risk_junctions_graph(G, lat, lng, total_incidents, max_junctions=5, radius=2000):
+    """
+    Identify nearby high-risk junctions using graph centrality and event location.
+    """
+    if total_incidents < 3 or G is None:
+        return []
+
+    try:
+        center_node = find_nearest_node(G, lat, lng)
+        subgraph = nx.ego_graph(G, center_node, radius=radius, distance='length')
+        if len(subgraph) < 3:
+            return []
+
+        centrality = nx.edge_betweenness_centrality(subgraph, weight='travel_time')
+        risk_candidates = []
+        seen_names = set()
+
+        for (u, v, k), score in sorted(centrality.items(), key=lambda x: x[1], reverse=True):
+            edge_data = subgraph[u][v][k]
+            name = get_edge_name(edge_data)
+            if name in seen_names:
+                continue
+            seen_names.add(name)
+
+            try:
+                u_data = subgraph.nodes[u]
+                v_data = subgraph.nodes[v]
+                lat_center = float((u_data.get('y', 0) + v_data.get('y', 0)) / 2)
+                lng_center = float((u_data.get('x', 0) + v_data.get('x', 0)) / 2)
+            except Exception:
+                lat_center = lat
+                lng_center = lng
+
+            risk_score = min(0.99, 0.3 + score * 2.0 + min(0.3, total_incidents / 40.0))
+            risk_candidates.append({
+                "name": name,
+                "lat": lat_center,
+                "lng": lng_center,
+                "risk_score": round(risk_score, 2),
+                "u": u,
+                "v": v,
+                "key": k,
+                "centrality": score,
+            })
+            if len(risk_candidates) >= max_junctions:
+                break
+
+        return risk_candidates
+    except Exception as e:
+        print(f"Error computing graph high-risk junctions: {e}")
+        return []
+
+
+def get_barricade_recommendations(G, high_risk_junctions, duration_hours=3.0, max_barricades=3):
+    """
+    Build barricade recommendations from high-risk junctions.
+    """
+    if not high_risk_junctions:
+        return []
+
+    barricade_roads = []
+    for junction in high_risk_junctions[:max_barricades]:
+        barricade_roads.append({
+            "road": junction["name"],
+            "reason": f"High-risk junction (score: {int(junction['risk_score'] * 100)}%)",
+            "timing": f"{max(1, int(duration_hours / 2))}hr before event"
+        })
+    return barricade_roads
+
+
+def get_diversion_plan(G, event_lat, event_lng, high_risk_junctions, num_routes=3):
+    """
+    Derive graph-based alternate routes by penalizing high-risk edges.
+    """
+    if not high_risk_junctions or G is None:
+        return []
+
+    try:
+        origin = find_nearest_node(G, event_lat, event_lng)
+        G_penalized = G.copy()
+        blocked_edges = []
+        for junction in high_risk_junctions[:num_routes]:
+            if all(key in junction for key in ("u", "v", "key")):
+                blocked_edges.append((junction["u"], junction["v"], junction["key"]))
+
+        if not blocked_edges:
+            return []
+
+        for u, v, k in blocked_edges:
+            if G_penalized.has_edge(u, v, key=k):
+                G_penalized[u][v][k]["travel_time"] = G_penalized[u][v][k].get("travel_time", 1.0) * 8.0
+            if G_penalized.has_edge(v, u, key=k):
+                G_penalized[v][u][k]["travel_time"] = G_penalized[v][u][k].get("travel_time", 1.0) * 8.0
+
+        diversion_plan = []
+        seen_targets = set()
+        for junction in high_risk_junctions:
+            target = junction["v"] if junction["u"] == origin else junction["u"]
+            if target == origin or target in seen_targets:
+                continue
+            seen_targets.add(target)
+
+            try:
+                primary_path = nx.shortest_path(G, origin, target, weight='travel_time')
+                detour_path = nx.shortest_path(G_penalized, origin, target, weight='travel_time')
+            except nx.NetworkXNoPath:
+                continue
+
+            if primary_path == detour_path or len(detour_path) < 2:
+                continue
+
+            primary_names = _path_road_names(G, primary_path)
+            detour_names = _path_road_names(G_penalized, detour_path)
+            if not primary_names or not detour_names:
+                continue
+
+            travel_primary = _path_travel_time(G, primary_path)
+            travel_detour = _path_travel_time(G_penalized, detour_path)
+            added_minutes = max(1, int(round((travel_detour - travel_primary) / 60)))
+
+            diversion_plan.append({
+                "from": primary_names[0],
+                "via": detour_names[1] if len(detour_names) > 1 else detour_names[0],
+                "to": detour_names[-1],
+                "added_time": f"+{added_minutes} min",
+                "path": [
+                    {"lat": float(G.nodes[n].get('y', 0)), "lng": float(G.nodes[n].get('x', 0))}
+                    for n in detour_path
+                ],
+            })
+
+            if len(diversion_plan) >= num_routes:
+                break
+
+        return diversion_plan
+    except Exception as e:
+        print(f"Error building graph diversion plan: {e}")
+        return []
+
+
 def get_critical_roads(G, lat, lng, radius=1000):
     """
     Day 5: Cascading Failure Detector.
