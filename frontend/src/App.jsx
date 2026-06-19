@@ -56,7 +56,8 @@ function App() {
   const [showLanding, setShowLanding] = useState(!initialHash)
   const [lat, setLat] = useState(12.9788)
   const [lng, setLng] = useState(77.5996)
-  const [locationName, setLocationName] = useState('Central Bengaluru')
+  const [showPin, setShowPin] = useState(false)
+  const [locationName, setLocationName] = useState('Click a spot on the map')
   const [eventType, setEventType] = useState('protest')
   const [duration, setDuration] = useState(4)
   const [rain, setRain] = useState(false)
@@ -206,9 +207,14 @@ function App() {
 
                     <div className="flex flex-col h-full justify-center">
                       <button 
-                        onClick={analyzeEvent}
+                        onClick={() => {
+                          console.log('Launch Prediction clicked');
+                          analyzeEvent();
+                        }}
                         disabled={loading}
-                        className="w-full h-[42px] bg-gradient-to-r from-[#00d2ff] to-[#3a7bd5] hover:opacity-90 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(0,210,255,0.2)] transition-all disabled:opacity-50 text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                        type="button"
+                        style={{ pointerEvents: 'auto' }}
+                        className="w-full h-[42px] bg-gradient-to-r from-[#00d2ff] to-[#3a7bd5] hover:opacity-90 active:opacity-75 text-white font-bold rounded-xl shadow-[0_0_20px_rgba(0,210,255,0.2)] transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex items-center justify-center gap-2"
                       >
                         {loading && <Loader2 size={14} className="animate-spin" />}
                         {loading ? "Simulating..." : "Launch Prediction"}
@@ -235,9 +241,10 @@ function App() {
                     <MapOverlay 
                       lat={lat} 
                       lng={lng} 
-                      setLocation={(loc) => { setLat(loc.lat); setLng(loc.lng); }}
+                      showPin={showPin}
+                      setLocation={(loc) => { setLat(loc.lat); setLng(loc.lng); setShowPin(true); }}
                       locationName={locationName}
-                      setLocationName={setLocationName}
+                      setLocationName={(name) => { setLocationName(name); setShowPin(true); }}
                       predictionData={data ? data.prediction : null}
                       criticalRoads={data ? data.critical_roads : null}
                       initialMapData={initialMapData}

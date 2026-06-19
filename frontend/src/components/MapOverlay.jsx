@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Circle, Marker, Polyline, Tooltip as LeafletTooltip, useMapEvents, ZoomControl, Rectangle } from 'react-leaflet';
+import React, { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, Circle, Marker, Polyline, Polygon, Tooltip as LeafletTooltip, useMapEvents, useMap, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
+import { BENGALURU_BOUNDARY_COORDS } from '../utils/bengaluruBoundary';
 
 const createCustomIcon = (color) => {
   return new L.Icon({
@@ -47,7 +48,7 @@ const BENGALURU_BOUNDS = [
   [13.3, 77.8]  // NorthEast corner
 ];
 
-export default function MapOverlay({ lat, lng, setLocation, locationName, setLocationName, predictionData, criticalRoads, initialMapData }) {
+export default function MapOverlay({ lat, lng, showPin, setLocation, locationName, setLocationName, predictionData, criticalRoads, initialMapData }) {
   
   const corridors = initialMapData?.metro_corridors || [];
 
@@ -55,9 +56,11 @@ export default function MapOverlay({ lat, lng, setLocation, locationName, setLoc
     <>
       {setLocation && <MapClickHandler setLocation={setLocation} setLocationName={setLocationName} />}
       
-      <Marker position={[lat, lng]} icon={venueIcon}>
-        <LeafletTooltip direction="top">{locationName || "Selected Target"}</LeafletTooltip>
-      </Marker>
+      {showPin && (
+        <Marker position={[lat, lng]} icon={venueIcon}>
+          <LeafletTooltip direction="top">{locationName || "Selected Target"}</LeafletTooltip>
+        </Marker>
+      )}
 
       {corridors.map((corridor, idx) => (
         <Polyline 
@@ -76,22 +79,67 @@ export default function MapOverlay({ lat, lng, setLocation, locationName, setLoc
   // If no prediction data is available, render the initial clean state
   if (!predictionData) {
     return (
-      <MapContainer 
-        center={[lat, lng]} 
-        zoom={12} 
-        style={{ height: '100%', width: '100%', backgroundColor: '#111' }}
-        className="z-0"
-        zoomControl={false}
-        maxBounds={BENGALURU_BOUNDS}
-        minZoom={10}
-      >
-        <ZoomControl position="bottomright" />
-        <TileLayer
-          url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
-        />
-        {renderCommonElements()}
-      </MapContainer>
+      <div style={{ height: '100%' }}>
+        <MapContainer 
+          center={[lat, lng]} 
+          zoom={12} 
+          style={{ height: '100%', width: '100%', backgroundColor: '#111' }}
+          className="z-0"
+          zoomControl={false}
+          maxBounds={BENGALURU_BOUNDS}
+          minZoom={10}
+        >
+          <ZoomControl position="bottomright" />
+          <TileLayer
+            url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
+          />
+          {renderCommonElements()}
+          <Polygon
+            positions={BENGALURU_BOUNDARY_COORDS}
+            pathOptions={{ color: '#00ffff', weight: 3, opacity: 0.9, dashArray: '8, 8', fill: false }}
+          >
+            <LeafletTooltip>Bengaluru Boundary</LeafletTooltip>
+          </Polygon>
+        </MapContainer>
+      </div>
+    );
+  }
+
+  const [roadZoom, setRoadZoom] = useState(14);
+
+  function DynamicRoads({ roads }) {
+    const map = useMap();
+
+    useEffect(() => {
+      setRoadZoom(map.getZoom());
+      const onZoom = () => setRoadZoom(map.getZoom());
+      map.on('zoomend', onZoom);
+      return () => map.off('zoomend', onZoom);
+    }, [map]);
+
+    return (
+      <>
+        {roads?.map((road, idx) => {
+          const baseWeight = Math.max(4, (road.weight || 1) * 2);
+          const scaledWeight = Math.min(28, Math.max(5, Math.round(baseWeight * Math.pow(1.25, roadZoom - 12))));
+          return (
+            <Polyline
+              key={idx}
+              positions={road.coordinates}
+              pathOptions={{
+                color: '#ff4b2b',
+                weight: scaledWeight,
+                opacity: 0.92,
+                lineCap: 'round',
+                lineJoin: 'round'
+              }}
+            >
+              <LeafletTooltip>High Risk Route</LeafletTooltip>
+            </Polyline>
+          );
+        })}
+      </>
     );
   }
 
@@ -131,22 +179,14 @@ export default function MapOverlay({ lat, lng, setLocation, locationName, setLoc
         <LeafletTooltip>Spillover Zone</LeafletTooltip>
       </Circle>
 
-      {criticalRoads && criticalRoads.map((road, idx) => (
-        <Polyline 
-          key={idx} 
-          positions={road.coordinates} 
-          pathOptions={{ color: '#ff4b2b', weight: road.weight * 2, opacity: 0.8 }}
-        >
-          <LeafletTooltip>High Risk Route</LeafletTooltip>
-        </Polyline>
-      ))}
+      <DynamicRoads roads={criticalRoads} />
 
-      <Rectangle 
-        bounds={BENGALURU_BOUNDS} 
-        pathOptions={{ color: '#00d2ff', weight: 2, opacity: 0.5, dashArray: '5, 5', fill: false }}
+      <Polygon
+        positions={BENGALURU_BOUNDARY_COORDS}
+        pathOptions={{ color: '#00ffff', weight: 3, opacity: 0.9, dashArray: '8, 8', fill: false }}
       >
         <LeafletTooltip>Bengaluru Boundary</LeafletTooltip>
-      </Rectangle>
+      </Polygon>
     </MapContainer>
   );
 }

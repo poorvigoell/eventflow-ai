@@ -52,8 +52,15 @@ def load_graph_on_startup():
         print("Model training complete!")
     
     print("Loading graph into memory...")
-    G = ox.load_graphml(graph_path)
-    print("Graph loaded!")
+    sys.stdout.flush()
+    try:
+        G = ox.load_graphml(graph_path)
+        print("Graph loaded successfully!")
+        sys.stdout.flush()
+    except Exception as e:
+        print(f"Error loading graph: {e}")
+        sys.stdout.flush()
+        raise
 
 class EventRequest(BaseModel):
     event_type: str
