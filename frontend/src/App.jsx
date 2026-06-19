@@ -197,7 +197,7 @@ function App() {
           )}
 
           {/* Signals Tab */}
-          {activeTab === 'signals' && (!data ? <EmptyState tabName="Signals" onGoLive={() => handleTabChange('live')} /> : <SignalsTab signals={data?.signals} />)}
+          {activeTab === 'signals' && (!data ? <EmptyState tabName="Signals" onGoLive={() => handleTabChange('live')} /> : <SignalsTab signals={data?.signals} eventConfig={{latitude: lat, longitude: lng, event_type: eventType, duration_hours: duration, weather_rain: rain}} />)}
 
           {/* Dispersal Tab */}
           {activeTab === 'dispersal' && (!data ? <EmptyState tabName="Crowd Dispersal" onGoLive={() => handleTabChange('live')} /> : (

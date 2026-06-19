@@ -16,6 +16,16 @@ from utils.economic_scorer import get_economic_score
 import graph.build_network as build_network
 import osmnx as ox
 from models.train import train_model
+import uuid
+import datetime
+try:
+    from stable_baselines3 import PPO
+    from rl.gym_env import EventFlowEnv
+    RL_AVAILABLE = True
+except ImportError:
+    RL_AVAILABLE = False
+
+rl_sessions = {}
 
 app = FastAPI(title="EventFlow AI Backend")
 
@@ -245,6 +255,118 @@ def get_signals_optimization(request: SignalsRequest):
     """Get traffic signal timing optimization."""
     signals = get_signal_recommendations(request.high_risk_junctions, request.total_incidents)
     return signals
+
+class RLStartRequest(BaseModel):
+    latitude: float
+    longitude: float
+    event_type: str
+    duration_hours: float
+    weather_rain: bool
+
+@app.get("/api/rl/status")
+def get_rl_status():
+    if not RL_AVAILABLE:
+        return {"model_exists": False, "error": "RL not installed"}
+    model_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "ppo_eventflow.zip")
+    exists = os.path.exists(model_path)
+    return {
+        "model_exists": exists,
+        "checkpoint_path": model_path if exists else None,
+        "last_trained": datetime.datetime.fromtimestamp(os.path.getmtime(model_path)).isoformat() if exists else None
+    }
+
+@app.post("/api/rl/start-session")
+def start_rl_session(request: RLStartRequest):
+    if not RL_AVAILABLE:
+        return {"error": "RL not available"}
+    global G
+    model_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "ppo_eventflow.zip")
+    if not os.path.exists(model_path):
+        return {"error": "RL model not trained yet."}
+        
+    session_id = str(uuid.uuid4())
+    
+    config = {
+        'latitude': request.latitude,
+        'longitude': request.longitude,
+        'event_type': request.event_type,
+        'duration_hours': request.duration_hours,
+        'weather_rain': request.weather_rain,
+    }
+    
+    env = EventFlowEnv(G=G, config=config)
+    obs, _ = env.reset()
+    
+    model = PPO.load(model_path, env=env)
+    
+    rl_sessions[session_id] = {
+        "env": env,
+        "model": model,
+        "last_accessed": datetime.datetime.now()
+    }
+    
+    junctions_data = []
+    for i, j in enumerate(env.junctions):
+        junctions_data.append({
+            "name": j.get('name', f"Junction {i+1}"),
+            "initial_green_sec": env.green_times[i],
+            "initial_queue": env.queues[i]
+        })
+        
+    return {
+        "session_id": session_id,
+        "junctions": junctions_data,
+        "total_incidents": env.total_incidents
+    }
+
+class RLActionRequest(BaseModel):
+    session_id: str
+
+@app.post("/api/rl/next-action")
+def get_rl_next_action(request: RLActionRequest):
+    if not RL_AVAILABLE:
+        return {"error": "RL not available"}
+    session = rl_sessions.get(request.session_id)
+    if not session:
+        return {"error": "Invalid or expired session ID."}
+        
+    env = session["env"]
+    model = session["model"]
+    session["last_accessed"] = datetime.datetime.now()
+    
+    obs = env._get_obs()
+    action, _ = model.predict(obs, deterministic=True)
+    
+    old_greens = list(env.green_times)
+    
+    obs, reward, done, _, info = env.step(action)
+    
+    actions_taken = []
+    for i in range(env.num_junctions):
+        adjustment = env.green_times[i] - old_greens[i]
+        actions_taken.append({
+            "junction": env.junctions[i].get('name', f"Junction {i+1}"),
+            "adjustment_sec": float(adjustment),
+            "new_green_sec": float(env.green_times[i]),
+            "queue": float(env.queues[i])
+        })
+        
+    return {
+        "step": env.current_step,
+        "actions": actions_taken,
+        "metrics": {
+            "avg_queue": float(info.get('avg_queue', 0)),
+            "crowd_remaining_pct": float(env.crowd_remaining * 100),
+            "reward": float(reward)
+        },
+        "done": done
+    }
+
+@app.post("/api/rl/end-session")
+def end_rl_session(request: RLActionRequest):
+    if request.session_id in rl_sessions:
+        del rl_sessions[request.session_id]
+    return {"status": "success"}
 
 class RoadNetworkRequest(BaseModel):
     latitude: float

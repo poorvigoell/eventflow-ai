@@ -1,0 +1,14 @@
+{
+    "rl_agent": {
+        "mean_reward": 127.76331101292519,
+        "final_avg_queue": 0.0
+    },
+    "random_agent": {
+        "mean_reward": 99.52538888501742,
+        "final_avg_queue": 0.0
+    },
+    "webster_baseline": {
+        "mean_reward": 106.47470059949087,
+        "final_avg_queue": 0.0
+    }
+}
