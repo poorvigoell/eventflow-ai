@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Card, MetricBox } from './ui/components';
 import { Route } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap, ZoomControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap, ZoomControl, Rectangle } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet.heat';
 
@@ -112,15 +112,19 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
 
       <div className="flex gap-6 h-[500px]">
         <div className="flex-1 rounded-2xl overflow-hidden border border-white/10 shadow-2xl relative z-0">
-          <div className="absolute top-4 left-4 right-4 z-[400] bg-black/60 backdrop-blur-md p-4 rounded-lg border border-white/10">
-            <label className="block text-sm font-bold text-white mb-2">
-              Time after event ends: <span className="text-[#f7b731]">{timeMin} minutes</span>
+          <div className="absolute top-4 left-4 right-4 z-[400] bg-black/70 backdrop-blur-md p-4 rounded-lg border border-[#f7b731]/30 shadow-lg">
+            <label className="block text-sm font-bold text-white mb-3">
+              ⏱️ Time after event ends: <span className="text-[#f7b731] text-lg font-black">{timeMin} min</span>
             </label>
             <input 
               type="range" min="0" max="60" step="5" value={timeMin}
               onChange={(e) => setTimeMin(parseInt(e.target.value))}
-              className="w-full accent-[#f7b731]"
+              className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#f7b731] slider"
             />
+            <div className="flex justify-between text-xs text-gray-400 mt-2">
+              <span>Event End</span>
+              <span>1 Hour Later</span>
+            </div>
           </div>
           <MapContainer 
             center={[lat, lng]} 
@@ -138,6 +142,14 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
                 <LeafletTooltip>{poi.name} - {poi.type}</LeafletTooltip>
               </Marker>
             ))}
+
+            {/* Bangalore Boundary */}
+            <Rectangle 
+              bounds={BENGALURU_BOUNDS} 
+              pathOptions={{ color: '#00d2ff', weight: 2, opacity: 0.5, dashArray: '5, 5', fill: false }}
+            >
+              <LeafletTooltip>Bengaluru Boundary</LeafletTooltip>
+            </Rectangle>
 
             {/* True Canvas Heatmap */}
             <HeatmapLayer points={currentSnapshot.points} />

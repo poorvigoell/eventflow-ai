@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { MapContainer, TileLayer, Circle, Marker, Polyline, Tooltip as LeafletTooltip, useMapEvents, ZoomControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, Marker, Polyline, Tooltip as LeafletTooltip, useMapEvents, ZoomControl, Rectangle } from 'react-leaflet';
 import L from 'leaflet';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
@@ -140,6 +140,13 @@ export default function MapOverlay({ lat, lng, setLocation, locationName, setLoc
           <LeafletTooltip>High Risk Route</LeafletTooltip>
         </Polyline>
       ))}
+
+      <Rectangle 
+        bounds={BENGALURU_BOUNDS} 
+        pathOptions={{ color: '#00d2ff', weight: 2, opacity: 0.5, dashArray: '5, 5', fill: false }}
+      >
+        <LeafletTooltip>Bengaluru Boundary</LeafletTooltip>
+      </Rectangle>
     </MapContainer>
   );
 }
