@@ -338,7 +338,7 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
         nodes = list(G.nodes())
         
         routes = []
-        # Mock 2 hospitals by picking nodes from the graph
+        # Mock 2 hospitals by picking nodes from the graph if no real ones found
         random.seed(101)  # Fixed seed for consistent routes
         
         # Build a temporary copy of the graph with penalized blockade edges if provided
@@ -352,11 +352,32 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
                     for k in G_detour[v][u]:
                         G_detour[v][u][k]['travel_time'] = G_detour[v][u][k].get('travel_time', 1.0) * 10.0
 
-        for idx in range(2):
-            target = random.choice(nodes)
+        targets = []
+        try:
+            tags = {"amenity": "hospital"}
+            gdf = ox.geometries_from_point((lat, lng), tags, dist=4000)
+            if not gdf.empty:
+                for idx, row in gdf.iterrows():
+                    geom = row.get("geometry")
+                    if not geom: continue
+                    h_lat, h_lng = (geom.y, geom.x) if geom.geom_type == 'Point' else (geom.centroid.y, geom.centroid.x)
+                    name = row.get("name")
+                    if not isinstance(name, str):
+                        name = "Local Hospital"
+                    h_node = find_nearest_node(G, h_lat, h_lng)
+                    if h_node != center_node:
+                        targets.append((h_node, name))
+                    if len(targets) >= 2: break
+        except Exception as e:
+            print(f"Failed to fetch real hospitals: {e}")
+
+        if not targets:
+            targets = [(random.choice(nodes), f"Hospital {i+1}") for i in range(2)]
+
+        for target_node, target_name in targets[:2]:
             try:
                 # Find primary shortest path
-                path_nodes_primary = nx.shortest_path(G, center_node, target, weight='travel_time')
+                path_nodes_primary = nx.shortest_path(G, center_node, target_node, weight='travel_time')
                 # Only keep paths that are actually long enough to be interesting (lower threshold for small test graphs)
                 min_len = 3 if len(G) < 50 else 10
                 if len(path_nodes_primary) < min_len:
@@ -365,19 +386,19 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
                 path_coords_primary = []
                 for n in path_nodes_primary:
                     node_data = G.nodes[n]
-                    path_coords_primary.append([node_data['x'], node_data['y']])
+                    path_coords_primary.append([node_data['y'], node_data['x']])
                 
                 # Find detour path using penalized graph
-                path_nodes_detour = nx.shortest_path(G_detour, center_node, target, weight='travel_time')
+                path_nodes_detour = nx.shortest_path(G_detour, center_node, target_node, weight='travel_time')
                 path_coords_detour = []
                 for n in path_nodes_detour:
                     node_data = G_detour.nodes[n]
-                    path_coords_detour.append([node_data['x'], node_data['y']])
+                    path_coords_detour.append([node_data['y'], node_data['x']])
 
                 routes.append({
                     "primary_path": path_coords_primary,
                     "detour_path": path_coords_detour,
-                    "name": f"Hospital Route {idx + 1}"
+                    "name": target_name
                 })
                 
                 if len(routes) >= 2:

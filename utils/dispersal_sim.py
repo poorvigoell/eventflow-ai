@@ -5,7 +5,7 @@ def simulate_dispersal(
     lat: float, lng: float,
     crowd_size: int = 30000,
     G=None,
-    duration_minutes: int = 60,
+    duration_minutes: int = 120,
     step_minutes: int = 5
 ) -> list[dict]:
     """
@@ -147,7 +147,8 @@ def simulate_dispersal(
 
     for t in range(0, duration_minutes + 1, step_minutes):
         # Exponential decay in crowd density at venue over time
-        decay = math.exp(-t / 30.0)
+        tau = max(15.0, min(120.0, 30.0 * (crowd_size / 30000.0) ** 0.5))
+        decay = math.exp(-t / tau)
         remaining_pct = round(max(0, decay * 100), 1)
         
         points = []

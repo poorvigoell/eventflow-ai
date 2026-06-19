@@ -138,6 +138,7 @@ def predict_event(request: EventRequest):
     
     # 4. Map Overlays & Timeline
     critical_roads = get_critical_roads(G, request.latitude, request.longitude, radius=1000) if G else []
+    emergency_routes = get_emergency_routes(G, request.latitude, request.longitude) if G else []
     timeline_raw = get_phase_timeline(pred['total_incidents'], request.start_time, request.duration_hours)
     
     # 5. Signals
@@ -149,6 +150,7 @@ def predict_event(request: EventRequest):
         "dispatch": dispatch,
         "economic_impact": econ,
         "critical_roads": critical_roads,
+        "emergency_routes": emergency_routes,
         "timeline": timeline_raw,
         "signals": signals
     }

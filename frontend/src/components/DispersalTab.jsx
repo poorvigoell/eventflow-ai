@@ -146,7 +146,7 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
               <input
                 type="range"
                 min="0"
-                max="60"
+                max={snapshots[snapshots.length - 1].time_min}
                 step="5"
                 value={timeMin}
                 onChange={(e) => setTimeMin(parseInt(e.target.value, 10))}
@@ -154,7 +154,7 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
               />
               <div className="flex justify-between text-xs text-gray-400 mt-2">
                 <span>Event End</span>
-                <span>1 Hour Later</span>
+                <span>{snapshots[snapshots.length - 1].time_min / 60} Hours Later</span>
               </div>
             </div>
           </div>
