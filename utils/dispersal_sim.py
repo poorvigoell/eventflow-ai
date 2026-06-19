@@ -66,66 +66,143 @@ def simulate_dispersal(
             print(f"Error building graph dispersal: {e}")
             paths_coords = []
 
-    # 2. Fallback: If graph G is unavailable or paths are empty, build a detailed grid-based road simulator
+    # 2. Fallback: If graph G is unavailable or paths are empty, build Bangalore-specific corridor network
     if not paths_coords:
-        # Standard Bangalore street grid (8 major road vectors starting from center)
-        # Coordinates offsets representing realistic street routes
-        num_spokes = 8
-        for i in range(num_spokes):
-            angle = math.radians(i * (360 / num_spokes))
+        # Real Bangalore major corridors and arteries (not radial spokes)
+        # Mimics major road axes: N-S corridors, E-W corridors, diagonal arteries
+        
+        # Primary N-S corridors (Bangalore orientation)
+        ns_corridors = [
+            {'direction': (0, 1), 'offset': -0.015},      # Western corridor (MG Road-like)
+            {'direction': (0, 1), 'offset': 0},           # Central corridor (Brigade Road)
+            {'direction': (0, 1), 'offset': 0.015},       # Eastern corridor (Koramangala-like)
+        ]
+        
+        # Primary E-W corridors
+        ew_corridors = [
+            {'direction': (1, 0), 'offset': -0.02},       # Northern corridor (Whitefield)
+            {'direction': (1, 0), 'offset': 0},           # Central E-W (Bangalore-Mysore Road)
+            {'direction': (1, 0), 'offset': 0.02},        # Southern corridor (HSR Layout)
+        ]
+        
+        # Diagonal arterial roads (mimics ORR, peripheral highways)
+        diagonal_corridors = [
+            {'direction': (1, 1), 'offset': -0.01},       # NE-SW diagonal
+            {'direction': (1, -1), 'offset': -0.01},      # NW-SE diagonal
+        ]
+        
+        all_corridors = ns_corridors + ew_corridors + diagonal_corridors
+        
+        for corridor in all_corridors:
+            direction = corridor['direction']
+            offset = corridor['offset']
             path_c = []
-            # Create a path with 15 nodes extending 3 km outwards along this road angle
-            # Add subtle curves to represent natural street alignment
-            for step in range(16):
-                d_km = (step * 0.2)
-                curve = 0.02 * math.sin(step * 0.8) # S-curve offset
-                p_lat = lat + d_km * (math.cos(angle) + curve * math.sin(angle)) / 111.0
-                p_lng = lng + d_km * (math.sin(angle) - curve * math.cos(angle)) / (111.0 * math.cos(math.radians(lat)))
+            
+            # Create 20-node path extending 4 km along each corridor
+            # With jitter to represent street-level zigzags
+            for step in range(21):
+                dist_km = step * 0.2
+                
+                # Base corridor movement
+                p_lat = lat + dist_km * direction[0] / 111.0 + offset
+                p_lng = lng + dist_km * direction[1] / (111.0 * math.cos(math.radians(lat)))
+                
+                # Add realistic street jitter (crossroads, turns)
+                jitter_scale = 0.003
+                jitter_lat = jitter_scale * math.sin(step * 0.5) * math.cos(step * 0.3)
+                jitter_lng = jitter_scale * math.cos(step * 0.5) * math.sin(step * 0.3)
+                
+                p_lat += jitter_lat
+                p_lng += jitter_lng
+                
                 path_c.append((p_lat, p_lng))
+            
+            paths_coords.append(path_c)
+        
+        # Secondary roads branching off main corridors (minor dispersal routes)
+        for i in range(6):
+            angle = math.radians(i * 60)  # 6 branching angles
+            path_c = []
+            
+            for step in range(12):
+                dist_km = step * 0.25
+                
+                # Branch from center at an angle
+                p_lat = lat + dist_km * math.cos(angle) / 111.0
+                p_lng = lng + dist_km * math.sin(angle) / (111.0 * math.cos(math.radians(lat)))
+                
+                # Curved branch effect
+                curve_factor = 0.005 * math.sin(step * 0.4)
+                p_lat += curve_factor * math.sin(angle)
+                p_lng += curve_factor * math.cos(angle)
+                
+                path_c.append((p_lat, p_lng))
+            
             paths_coords.append(path_c)
 
     # 3. Simulate crowd movement timestep snapshot by snapshot
-    # Speed of pedestrians under crowd density: average ~3 km/h -> 0.05 km per minute
-    base_speed_km_min = 0.06 
+    # Pedestrian speed under crowd pressure: ~2-4 km/h, average ~3 km/h -> 0.05 km per minute
+    # Faster initial exodus, then slowing as distance increases
+    base_speed_km_min = 0.05 
 
     for t in range(0, duration_minutes + 1, step_minutes):
-        decay = math.exp(-t / 25.0)
+        # Exponential decay in crowd density at venue over time
+        decay = math.exp(-t / 30.0)
         remaining_pct = round(max(0, decay * 100), 1)
         
         points = []
-        # Group crowd to flow down identified road channels
+        
+        # Variable speed: faster early on (crowd panic), slower later (steady state)
+        time_factor = 1.0 if t < 15 else 0.7
+        
+        # Crowd front propagates along roads
+        # At t=0, crowd is at venue; spreads outward at 0.05 km/min = 3 km/hr
+        crowd_front_km = t * base_speed_km_min * time_factor
+        crowd_start_km = max(0, crowd_front_km - 0.2)  # Crowd occupies 200m wide band
+        
         people_per_road = crowd_size / max(1, len(paths_coords))
         
-        # Calculate crowd front distance at time t
-        crowd_dist_km = t * base_speed_km_min
-        
         for path in paths_coords:
-            # Accumulate distances along path segment vertices
+            # Traverse each road path and place density points
             accumulated_dist = 0.0
             for idx in range(len(path) - 1):
                 p1 = path[idx]
                 p2 = path[idx+1]
                 
-                # Approximate distance in km using Equirectangular projection
+                # Equirectangular distance approximation
                 d_lat = (p2[0] - p1[0]) * 111.0
                 d_lng = (p2[1] - p1[1]) * (111.0 * math.cos(math.radians(p1[0])))
                 seg_len = math.sqrt(d_lat**2 + d_lng**2)
                 
-                # Crowd fills this road segment
-                if accumulated_dist <= crowd_dist_km:
-                    # Interpolate density points along this active road segment
-                    steps = max(2, int(seg_len / 0.15))
+                # Only render crowd that has reached this road segment
+                if accumulated_dist <= crowd_front_km + 0.3:
+                    # Interpolate density points densely along active road segments
+                    steps = max(3, int(seg_len / 0.1))  # More points for better coverage
                     for step_idx in range(steps):
                         frac = step_idx / steps
                         interp_lat = p1[0] + frac * (p2[0] - p1[0])
                         interp_lng = p1[1] + frac * (p2[1] - p1[1])
                         
-                        dist_from_venue = accumulated_dist + frac * seg_len
-                        # Density fades exponentially as crowd spreads away from core venue
-                        density = (people_per_road / max(1, crowd_size)) * math.exp(-dist_from_venue / 0.9) * decay
+                        # Distance along this specific road from the venue
+                        dist_along_road = accumulated_dist + frac * seg_len
+                        
+                        # Density is highest where crowd front is, tapers ahead and behind
+                        if crowd_start_km <= dist_along_road <= crowd_front_km:
+                            # Crowd is actively on this segment
+                            density_factor = (people_per_road / crowd_size) * decay
+                            # Peak at front, fade behind
+                            dist_from_front = crowd_front_km - dist_along_road
+                            density = density_factor * (1.0 - (dist_from_front / 0.3)) * math.exp(-t / 40.0)
+                        elif dist_along_road < crowd_start_km:
+                            # Behind the crowd front, lighter dispersed population
+                            density = (people_per_road / crowd_size) * 0.3 * decay * math.exp(-dist_along_road / 1.5)
+                        else:
+                            # Ahead of crowd front, sparse scouts
+                            density = (people_per_road / crowd_size) * 0.05 * math.exp(-(dist_along_road - crowd_front_km) / 0.5)
+                        
                         density = max(0, round(density, 4))
                         
-                        if density > 0.001:
+                        if density > 0.0005:  # Lower threshold for more visibility
                             points.append({
                                 "lat": round(interp_lat, 6),
                                 "lng": round(interp_lng, 6),
@@ -133,7 +210,7 @@ def simulate_dispersal(
                             })
                 
                 accumulated_dist += seg_len
-                if accumulated_dist > crowd_dist_km + 0.3: # Stop rendering past front boundary
+                if accumulated_dist > crowd_front_km + 0.5:
                     break
 
         snapshots.append({
