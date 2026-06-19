@@ -305,7 +305,7 @@ export function LiveDashboard({
                     {data.emergency_services?.map((svc, idx) => (
                       <div key={idx} className="flex justify-between items-center text-sm border-b border-[var(--color-border)] pb-2 last:border-0">
                         <span className="text-[var(--color-text-main)] font-medium flex items-center gap-2">
-                          {svc.type === 'hospital' ? '🏥' : '🚓'} {svc.name}
+                          {svc.type === 'hospital' ? '🏥' : svc.type === 'fire' ? '🚒' : '🚓'} {svc.name}
                         </span>
                         <span className="font-bold text-[var(--color-accent)]">{svc.distance_km} km</span>
                       </div>

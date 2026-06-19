@@ -16,3 +16,13 @@ graph/*.graphml
 
 # Streamlit
 .streamlit/
+
+# OS and IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Project specific
+cache/
+debug_api.py
+*.csv

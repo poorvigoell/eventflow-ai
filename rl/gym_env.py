@@ -38,17 +38,46 @@ class EventFlowEnv(gym.Env):
         
         self.base_green_time = 45.0
         
+        # Load historical dataset
+        self.dataset = None
+        try:
+            dataset_path = 'C:/Users/poorv/Downloads/Astram event data_anonymized - Astram event data_anonymizedb40ac87.csv'
+            df = pd.read_csv(dataset_path)
+            valid_types = ["protest", "public_event", "sports", "vip_movement", "procession"]
+            self.dataset = df[df['event_cause'].isin(valid_types)].dropna(subset=['latitude', 'longitude'])
+        except Exception as e:
+            print(f"Running without historical dataset: {e}")
+            
         # Load event setup
         self._setup_event()
         
     def _setup_event(self):
-        # Pick random config if not provided
-        self.lat = self.config.get('latitude', 12.9789)
-        self.lng = self.config.get('longitude', 77.5998)
-        self.event_type = self.config.get('event_type', random.choice(["protest", "public_event", "sports", "vip_movement"]))
-        self.duration_hours = self.config.get('duration_hours', 2.0)
-        self.rain = self.config.get('weather_rain', random.choice([True, False]))
-        self.start_hour = self.config.get('start_hour', random.randint(8, 20))
+        if self.dataset is not None and not self.dataset.empty and not self.config:
+            # Sample a real historical event from the dataset
+            row = self.dataset.sample(1).iloc[0]
+            self.lat = float(row['latitude'])
+            self.lng = float(row['longitude'])
+            
+            cause = row['event_cause']
+            if cause == 'procession':
+                cause = 'protest' # map to our model
+            self.event_type = cause
+            self.duration_hours = random.uniform(1.0, 4.0)
+            self.rain = random.choice([True, False]) # dataset doesn't have weather
+            
+            try:
+                start_dt = pd.to_datetime(row['start_datetime'])
+                self.start_hour = start_dt.hour
+            except:
+                self.start_hour = random.randint(8, 20)
+        else:
+            # Pick random config if not provided or if using custom config
+            self.lat = self.config.get('latitude', 12.9789)
+            self.lng = self.config.get('longitude', 77.5998)
+            self.event_type = self.config.get('event_type', random.choice(["protest", "public_event", "sports", "vip_movement"]))
+            self.duration_hours = self.config.get('duration_hours', 2.0)
+            self.rain = self.config.get('weather_rain', random.choice([True, False]))
+            self.start_hour = self.config.get('start_hour', random.randint(8, 20))
         
         # Get baseline prediction to seed queues
         pred = predict_event_impact(
@@ -89,7 +118,8 @@ class EventFlowEnv(gym.Env):
         
         if options and 'config' in options:
             self.config = options['config']
-            self._setup_event()
+            
+        self._setup_event()
             
         self.current_step = 0
         

@@ -161,7 +161,12 @@ def get_high_risk_junctions_graph(G, lat, lng, total_incidents, max_junctions=5,
         risk_candidates = []
         seen_names = set()
 
-        for (u, v, k), score in sorted(centrality.items(), key=lambda x: x[1], reverse=True):
+        for edge_key, score in sorted(centrality.items(), key=lambda x: x[1], reverse=True):
+            if len(edge_key) == 3:
+                u, v, k = edge_key
+            else:
+                u, v = edge_key
+                k = 0
             edge_data = subgraph[u][v][k]
             name = get_edge_name(edge_data)
             if name in seen_names:
@@ -302,7 +307,13 @@ def get_critical_roads(G, lat, lng, radius=1000):
         
         critical_paths = []
         # Get top critical roads
-        for (u, v, k), score in sorted_edges:
+        for edge_key, score in sorted_edges:
+            if len(edge_key) == 3:
+                u, v, k = edge_key
+            else:
+                u, v = edge_key
+                k = 0
+            
             if 'geometry' in subgraph[u][v][k]:
                 coords = list(subgraph[u][v][k]['geometry'].coords)
             else:
@@ -354,56 +365,84 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
 
         targets = []
         try:
-            tags = {"amenity": "hospital"}
-            gdf = ox.geometries_from_point((lat, lng), tags, dist=4000)
+            # Search within 8km which is large enough to cover the city but fast enough not to hang
+            tags = {"amenity": ["hospital", "police", "fire_station"]}
+            gdf = ox.features_from_point((lat, lng), tags, dist=8000)
+            
             if not gdf.empty:
                 for idx, row in gdf.iterrows():
                     geom = row.get("geometry")
                     if not geom: continue
                     h_lat, h_lng = (geom.y, geom.x) if geom.geom_type == 'Point' else (geom.centroid.y, geom.centroid.x)
                     name = row.get("name")
-                    if not isinstance(name, str):
-                        name = "Local Hospital"
-                    h_node = find_nearest_node(G, h_lat, h_lng)
-                    if h_node != center_node:
-                        targets.append((h_node, name))
-                    if len(targets) >= 2: break
+                    amenity = row.get("amenity")
+                    if not isinstance(name, str) or str(name) == 'nan':
+                        name = f"Local {str(amenity).title()}"
+                        
+                    dist_val = ((h_lat - lat)**2 + (h_lng - lng)**2)**0.5
+                    targets.append((dist_val, h_lat, h_lng, name, amenity))
+                
         except Exception as e:
-            print(f"Failed to fetch real hospitals: {e}")
+            print(f"Failed to fetch real emergency services: {e}")
 
-        if not targets:
-            hospital_names = ["Manipal Hospital", "Apollo Hospital", "Fortis Hospital", "Narayana Health", "Aster CMI"]
-            targets = [(random.choice(nodes), random.choice(hospital_names)) for i in range(2)]
+        # Sort by distance
+        targets.sort(key=lambda x: x[0])
 
-        for target_node, target_name in targets[:2]:
+        # Filter to ensure we get a diverse set of real ones (max 2 of each type), up to 5 total
+        final_targets = []
+        counts = {"hospital": 0, "police": 0, "fire_station": 0}
+        
+        for dist, t_lat, t_lng, t_name, amenity in targets:
+            if counts.get(amenity, 0) < 2:
+                # Only compute nearest node for the chosen targets
+                t_node = find_nearest_node(G, t_lat, t_lng)
+                if t_node != center_node:
+                    final_targets.append((t_node, t_name, amenity))
+                    counts[amenity] = counts.get(amenity, 0) + 1
+            if len(final_targets) >= 5:
+                break
+                
+        # Fallback: if absolutely nothing is found (e.g. Overpass API timeout), 
+        # we still want to show something so the UI doesn't look broken.
+        if not final_targets:
+            hospital_node = random.choice(nodes)
+            police_node = random.choice(nodes)
+            fire_node = random.choice(nodes)
+            final_targets = [
+                (hospital_node, "City General Hospital (Mock)", "hospital"),
+                (police_node, "Central Police Station (Mock)", "police"),
+                (fire_node, "Central Fire Station (Mock)", "fire_station")
+            ]
+
+        # Pre-compute all shortest paths from the center node
+        try:
+            _, paths_primary = nx.single_source_dijkstra(G, center_node, weight='travel_time')
+            _, paths_detour = nx.single_source_dijkstra(G_detour, center_node, weight='travel_time')
+        except Exception as e:
+            print(f"Failed to precompute paths: {e}")
+            paths_primary, paths_detour = {}, {}
+
+        for target_node, target_name, amenity in final_targets:
             try:
                 # Find primary shortest path
-                path_nodes_primary = nx.shortest_path(G, center_node, target_node, weight='travel_time')
-                # Only keep paths that are actually long enough to be interesting (lower threshold for small test graphs)
-                min_len = 3 if len(G) < 50 else 10
-                if len(path_nodes_primary) < min_len:
+                if target_node not in paths_primary:
+                    continue # Node is unreachable in this graph
+                path_nodes_primary = paths_primary[target_node]
+                path_coords_primary = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in path_nodes_primary]
+                
+                # Find detour shortest path (with heavily penalized blockades)
+                if target_node not in paths_detour:
                     continue
-                
-                path_coords_primary = []
-                for n in path_nodes_primary:
-                    node_data = G.nodes[n]
-                    path_coords_primary.append([node_data['y'], node_data['x']])
-                
-                # Find detour path using penalized graph
-                path_nodes_detour = nx.shortest_path(G_detour, center_node, target_node, weight='travel_time')
-                path_coords_detour = []
-                for n in path_nodes_detour:
-                    node_data = G_detour.nodes[n]
-                    path_coords_detour.append([node_data['y'], node_data['x']])
+                path_nodes_detour = paths_detour[target_node]
+                path_coords_detour = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in path_nodes_detour]
 
                 routes.append({
                     "primary_path": path_coords_primary,
                     "detour_path": path_coords_detour,
-                    "name": target_name
+                    "name": target_name,
+                    "type": "fire" if amenity == "fire_station" else amenity
                 })
-                
-                if len(routes) >= 2:
-                    break
+
             except nx.NetworkXNoPath:
                 continue
                 
@@ -428,8 +467,8 @@ def get_transit_infrastructure(lat: float, lng: float, radius: float = 1500) -> 
             "highway": "bus_stop",
             "amenity": "parking"
         }
-        # Fetch geometries within venue radius
-        gdf = ox.geometries_from_point((lat, lng), tags, dist=radius)
+        # Fetch features within venue radius
+        gdf = ox.features_from_point((lat, lng), tags, dist=radius)
         if not gdf.empty:
             for idx, row in gdf.iterrows():
                 # Extract point geometry
@@ -458,59 +497,27 @@ def get_transit_infrastructure(lat: float, lng: float, radius: float = 1500) -> 
                 if not isinstance(label, str):
                     label = f"{infra_type.title()} Point"
 
+                dist = ((p_lat - lat)**2 + (p_lng - lng)**2)**0.5
                 infra_points.append({
                     "lat": p_lat,
                     "lng": p_lng,
                     "type": infra_type,
-                    "name": label
+                    "name": label,
+                    "dist": dist
                 })
+                
+            # Sort by distance to find nearest
+            infra_points.sort(key=lambda x: x["dist"])
+            
+            # Filter limits to prevent UI clutter
+            metros = [p for p in infra_points if p["type"] == "metro"][:3]
+            buses = [p for p in infra_points if p["type"] == "bus"][:3]
+            parking = [p for p in infra_points if p["type"] == "parking"][:5]
+            
+            infra_points = metros + buses + parking
+            
     except Exception as e:
-        print(f"OSMnx POI lookup skipped or failed: {e}. Falling back to dynamic generator.")
-
-    # 2. Dynamic high-fidelity generator fallback (ensures flawless UI display for the demo)
-    if len(infra_points) < 5:
-        # Add mock Metro stations matching Bangalore's Namma Metro lines
-        metro_offsets = [
-            (0.003, -0.004, "MG Road Metro Station"),
-            (-0.005, 0.008, "Cubbon Park Metro Station"),
-            (0.008, 0.002, "Vidhana Soudha Metro Station")
-        ]
-        for dy, dx, name in metro_offsets:
-            infra_points.append({
-                "lat": lat + dy,
-                "lng": lng + dx,
-                "type": "metro",
-                "name": name
-            })
-
-        # Add mock bus stops nearby
-        bus_offsets = [
-            (0.002, 0.004, "Kinnaswamy Stadium Bus Stop"),
-            (-0.003, -0.002, "St. Mark's Road Junction Bus Stop"),
-            (0.005, -0.006, "General Post Office Bus Stop"),
-            (-0.007, 0.003, "Kasturba Road Bus Stop")
-        ]
-        for dy, dx, name in bus_offsets:
-            infra_points.append({
-                "lat": lat + dy,
-                "lng": lng + dx,
-                "type": "bus",
-                "name": name
-            })
-
-        # Add mock parking zones
-        parking_offsets = [
-            (0.004, 0.006, "Stadium Multi-Level Parking"),
-            (-0.004, 0.004, "Kanteerava Parking Complex"),
-            (0.001, -0.005, "Cubbon Park Parking Lot")
-        ]
-        for dy, dx, name in parking_offsets:
-            infra_points.append({
-                "lat": lat + dy,
-                "lng": lng + dx,
-                "type": "parking",
-                "name": name
-            })
+        print(f"OSMnx POI lookup skipped or failed: {e}. No mock fallback generated.")
 
     return infra_points
 

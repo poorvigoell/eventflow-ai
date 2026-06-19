@@ -1,5 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
+import random
 from pydantic import BaseModel
 from typing import Optional, List
 import sys
@@ -18,6 +20,7 @@ import osmnx as ox
 from models.train import train_model
 import uuid
 import datetime
+from api.traffic_api import traffic_simulator
 try:
     from stable_baselines3 import PPO
     from rl.gym_env import EventFlowEnv
@@ -158,22 +161,13 @@ def predict_event(request: EventRequest):
     from utils.geo import haversine_distance
     
     emergency_services = []
-    # If emergency_routes has real hospitals, use them
+    # If emergency_routes has real data, use them
     for er in emergency_routes:
         if len(er.get("primary_path", [])) > 0:
             target_pt = er["primary_path"][-1]
             dist = haversine_distance(request.latitude, request.longitude, target_pt[0], target_pt[1])
-            emergency_services.append({"type": "hospital", "name": er["name"], "distance_km": round(dist, 1)})
+            emergency_services.append({"type": er.get("type", "hospital"), "name": er["name"], "distance_km": round(dist, 1)})
             
-    # Fill in police stations and any missing hospitals
-    if len(emergency_services) < 2:
-        emergency_services.append({"type": "hospital", "name": "City General Hospital", "distance_km": round(random.uniform(1.2, 3.0), 1)})
-    
-    emergency_services.extend([
-        {"type": "police", "name": "Central Police Station", "distance_km": round(random.uniform(0.5, 2.0), 1)},
-        {"type": "police", "name": "Traffic Police Outpost", "distance_km": round(random.uniform(1.0, 2.5), 1)}
-    ])
-    
     # Sort by distance
     emergency_services.sort(key=lambda x: x["distance_km"])
     
@@ -200,10 +194,11 @@ class DispersalRequest(BaseModel):
     crowd_size: int = 30000
 
 @app.post("/api/dispersal")
-def get_dispersal(request: DispersalRequest):
+async def get_dispersal(request: DispersalRequest):
     global G
     eco = get_economic_score(request.event_type, "Venue", request.total_incidents)
-    pois = get_transit_pois(request.latitude, request.longitude, radius_km=2.5)
+    # Use the real OSMnx geospatial logic instead of hardcoded mock dataset
+    pois = await asyncio.to_thread(get_transit_infrastructure, request.latitude, request.longitude, 2500)
     corridors = get_metro_corridor_points(request.latitude, request.longitude, radius_km=3.0)
     
     # Generate crowd dispersal snapshots (t=0 to t=60)
@@ -438,7 +433,7 @@ class TransitRequest(BaseModel):
 def get_transit_data(request: TransitRequest):
     """Get transit and dispersal infrastructure."""
     pois = get_transit_pois(request.latitude, request.longitude, radius_km=request.radius_km)
-    corridors = get_transit_infrastructure(None, request.latitude, request.longitude)
+    corridors = get_transit_infrastructure(request.latitude, request.longitude)
     
     return {
         "pois": pois,
@@ -453,4 +448,186 @@ def health_check():
         "status": "ok",
         "graph_loaded": G is not None
     }
+
+# ==========================================
+# Traffic Anomalies & WebSockets
+# ==========================================
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(message)
+            except Exception:
+                pass
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/alerts")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep connection alive
+            data = await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+class AnomalyRequest(BaseModel):
+    junction_name: Optional[str] = None
+
+@app.post("/api/traffic/inject-anomaly")
+async def inject_traffic_anomaly(req: AnomalyRequest):
+    """Manually inject a traffic anomaly"""
+    global G
+    junction = req.junction_name
+    
+    if not junction:
+        # Pick a random major road if available
+        if G:
+            major_roads = get_major_roads(G, num_roads=20)
+            if major_roads:
+                junction = random.choice(list(major_roads.keys()))
+        
+        if not junction or junction == "Unknown":
+            junction = random.choice(["Central Street", "MG Road", "Brigade Road", "Koramangala 80ft Road", "Silk Board Junction"])
+            
+    anomaly = traffic_simulator.inject_anomaly(junction)
+    
+    # Attempt to find real traffic control center using OSMnx
+    nearest_center = "Central Traffic HQ (Mock)"
+    if G:
+        try:
+            import osmnx as ox
+            import asyncio
+            
+            # Default to center of Bangalore if exact junction not found
+            lat, lng = 12.9788, 77.5996
+            
+            # Try to get exact coordinates of the junction from the graph
+            major_roads = get_major_roads(G, num_roads=20)
+            if major_roads and junction in major_roads:
+                u, v = major_roads[junction]
+                if u in G.nodes:
+                    lat = G.nodes[u].get('y', lat)
+                    lng = G.nodes[u].get('x', lng)
+            
+            def fetch_nearest_police():
+                from utils.geo import haversine_distance
+                gdf = ox.features_from_point((lat, lng), tags={'amenity': ['police']}, dist=4000)
+                if gdf.empty:
+                    return nearest_center, 0.0
+                min_dist = 999999
+                best_name = "Local Traffic Police Station"
+                for idx, row in gdf.iterrows():
+                    geom = row.get("geometry")
+                    if not geom: continue
+                    h_lat, h_lng = (geom.y, geom.x) if geom.geom_type == 'Point' else (geom.centroid.y, geom.centroid.x)
+                    dist_km = haversine_distance(lat, lng, h_lat, h_lng)
+                    if dist_km < min_dist:
+                        min_dist = dist_km
+                        name = row.get("name")
+                        if isinstance(name, str) and str(name) != 'nan':
+                            best_name = name
+                return best_name, round(min_dist, 2)
+                
+            # Run blocking OSMnx call in a separate thread so we don't freeze the async event loop
+            nearest_center, center_dist_km = await asyncio.to_thread(fetch_nearest_police)
+            
+        except Exception as e:
+            print(f"Error finding nearest traffic center: {e}")
+            center_dist_km = 0.0
+            
+    anomaly['traffic_control_center'] = nearest_center
+    anomaly['traffic_control_center_dist_km'] = center_dist_km
+    
+    # Calculate ETA for different emergency vehicles
+    # distance = approx 2.5 km for nearest hospital/station
+    base_distance_km = 2.5
+    jam_penalty = anomaly['jam_factor'] / 10.0
+    
+    # Ambulance: fast, medium penalty (can bypass some traffic)
+    ambulance_speed = max(5.0, 50.0 * (1.0 - (jam_penalty * 0.7)))
+    # Fire Truck: slow, heavy penalty (large vehicle, hard to squeeze through)
+    fire_truck_speed = max(2.0, 35.0 * (1.0 - jam_penalty))
+    # Police: very fast, light penalty (nimble, motorcycles/cruisers)
+    police_speed = max(10.0, 60.0 * (1.0 - (jam_penalty * 0.5)))
+    
+    anomaly['emergency_etas'] = {
+        'ambulance': round((base_distance_km / ambulance_speed) * 60),
+        'fire_truck': round((base_distance_km / fire_truck_speed) * 60),
+        'police': round((base_distance_km / police_speed) * 60)
+    }
+    
+    # Keep the original for backwards compatibility
+    anomaly['emergency_eta_mins'] = anomaly['emergency_etas']['ambulance']
+    
+    # Create Tactical Plan
+    anomaly['tactical_plan'] = {
+        "police_dispatch": f"Dispatch 2 traffic police units to {junction} to restrict incoming flow.",
+        "diversion": f"Activate digital signage to divert traffic to alternate parallel routes.",
+        "signals": f"Override signals at {junction} to maximum green time (90s) for congested direction."
+    }
+    
+    # Broadcast to all connected clients
+    await manager.broadcast({
+        "type": "NEW_ANOMALY",
+        "data": anomaly
+    })
+    
+    return anomaly
+
+@app.get("/api/traffic/anomalies")
+def get_all_anomalies():
+    """Get all anomalies (active and resolved)"""
+    return list(traffic_simulator.active_anomalies.values())
+
+@app.post("/api/traffic/clear-anomaly/{anomaly_id}")
+def clear_anomaly(anomaly_id: str):
+    traffic_simulator.clear_anomaly(anomaly_id)
+    return {"status": "cleared"}
+
+# Background task for automatic anomaly injection
+async def anomaly_generator():
+    while True:
+        # Random sleep between 1 to 2 minutes for faster testing (or 5 to 7 mins as originally)
+        # We will keep it 2-3 mins so anomalies show up faster
+        await asyncio.sleep(random.randint(120, 180))
+        
+        # Auto-resolve anomalies older than 10 minutes
+        now = datetime.datetime.now()
+        for anomaly in list(traffic_simulator.active_anomalies.values()):
+            if anomaly["status"] == "active":
+                anomaly_time = datetime.datetime.fromisoformat(anomaly["timestamp"])
+                if (now - anomaly_time).total_seconds() > 600: # 10 mins
+                    traffic_simulator.clear_anomaly(anomaly["id"])
+                    await manager.broadcast({
+                        "type": "ANOMALY_RESOLVED",
+                        "anomaly_id": anomaly["id"],
+                        "resolved_at": anomaly["resolved_at"]
+                    })
+                    print(f"Auto-resolved anomaly {anomaly['id']}")
+
+        # Auto-inject an anomaly
+        try:
+            # We call the endpoint function directly
+            anomaly = await inject_traffic_anomaly(AnomalyRequest())
+            print(f"Auto-injected anomaly at {anomaly['junction']}.")
+        except Exception as e:
+            print(f"Error auto-injecting anomaly: {e}")
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(anomaly_generator())
 

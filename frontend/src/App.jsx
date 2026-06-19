@@ -5,9 +5,10 @@ import { TimelineChart } from './components/TimelineChart'
 import { SignalsTab } from './components/SignalsTab'
 import { DispersalTab } from './components/DispersalTab'
 import { DigitalTwin } from './components/DigitalTwin'
+import { AlertsTab } from './components/AlertsTab'
 import { LandingPage } from './components/LandingPage'
 import { Card, MetricBox, TabButton } from './components/ui/components'
-import { Activity, ShieldAlert, Navigation, Maximize2, Minimize2, Map as MapIcon, ListChecks, Radio, Route, Cpu, TrendingUp, AlertTriangle, ChevronDown, Loader2 } from 'lucide-react'
+import { Activity, ShieldAlert, Navigation, Maximize2, Minimize2, Map as MapIcon, ListChecks, Radio, Route, Cpu, TrendingUp, AlertTriangle, ChevronDown, Loader2, Bell } from 'lucide-react'
 
 import { LiveDashboard } from './components/LiveDashboard'
 import { TacticalPlan } from './components/TacticalPlan'
@@ -43,7 +44,7 @@ function App() {
   const cachedState = loadCachedState();
 
   const initialHash = window.location.hash.replace('#', '')
-  const validTabs = ['live', 'tactical', 'signals', 'dispersal', 'twin']
+  const validTabs = ['live', 'tactical', 'signals', 'dispersal', 'twin', 'alerts']
   const startingTab = validTabs.includes(initialHash) ? initialHash : 'live'
 
   const [showLanding, setShowLanding] = useState(!initialHash)
@@ -69,7 +70,56 @@ function App() {
   const [initialMapData, setInitialMapData] = useState(null)
 
   const [activeTab, setActiveTab] = useState(startingTab)
+  const activeTabRef = useRef(activeTab)
+  const [visitedTabs, setVisitedTabs] = useState([startingTab])
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const [anomalies, setAnomalies] = useState([])
+  const [hasUnreadAnomalies, setHasUnreadAnomalies] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  // Fetch initial anomalies
+  useEffect(() => {
+    axios.get('http://localhost:8000/api/traffic/anomalies')
+      .then(res => setAnomalies(res.data))
+      .catch(err => console.error(err))
+  }, [])
+
+  // WebSocket Connection
+  useEffect(() => {
+    const ws = new WebSocket('ws://localhost:8000/ws/alerts');
+    
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'NEW_ANOMALY') {
+        setAnomalies(prev => [msg.data, ...prev]);
+        setToast(`🚨 Severe Gridlock Detected at ${msg.data.junction}!`);
+        if (activeTabRef.current !== 'alerts') {
+          setHasUnreadAnomalies(true);
+        }
+        setTimeout(() => setToast(null), 5000);
+      } else if (msg.type === 'ANOMALY_RESOLVED') {
+        setAnomalies(prev => prev.map(a => 
+          a.id === msg.anomaly_id ? { ...a, status: 'resolved', resolved_at: msg.resolved_at } : a
+        ));
+      }
+    };
+
+    return () => {
+      // Small delay prevents React StrictMode from throwing the "closed before established" warning
+      setTimeout(() => ws.close(), 1000);
+    };
+  }, []);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    if (activeTab === 'alerts') {
+      setHasUnreadAnomalies(false);
+    }
+    if (!visitedTabs.includes(activeTab)) {
+      setVisitedTabs(prev => [...prev, activeTab]);
+    }
+  }, [activeTab]);
 
   // Save to cache whenever relevant state changes
   useEffect(() => {
@@ -138,7 +188,15 @@ function App() {
 
 
   return (
-    <div className="flex flex-col h-screen bg-[var(--color-base)] text-[var(--color-text-main)] font-sans overflow-hidden">
+    <div className="flex flex-col h-screen bg-[var(--color-base)] text-[var(--color-text-main)] font-sans overflow-hidden relative">
+
+      {/* Global Toast Notification */}
+      {toast && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500/90 border border-red-500 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 fade-in duration-300">
+          <AlertTriangle size={20} />
+          <span className="font-bold">{toast}</span>
+        </div>
+      )}
 
       {/* Global Top Navbar */}
       <nav className="flex items-center justify-between px-6 bg-[var(--color-surface)] border-b border-[var(--color-border)] shrink-0 h-16 z-50 relative">
@@ -156,6 +214,12 @@ function App() {
           <TabButton active={activeTab === 'signals'} onClick={() => handleTabChange('signals')} icon={<Radio size={18} />} label="Signals" />
           <TabButton active={activeTab === 'dispersal'} onClick={() => handleTabChange('dispersal')} icon={<Route size={18} />} label="Crowd Dispersal" />
           <TabButton active={activeTab === 'twin'} onClick={() => handleTabChange('twin')} icon={<Cpu size={18} />} label="Digital Twin" />
+          <div className="relative">
+            <TabButton active={activeTab === 'alerts'} onClick={() => handleTabChange('alerts')} icon={<Bell size={18} />} label="Live Alerts" />
+            {hasUnreadAnomalies && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--color-surface)] animate-pulse" />
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -169,54 +233,77 @@ function App() {
         {/* Main Content Area (Map / Tabs) */}
         <div ref={scrollContainerRef} className={`flex-1 relative p-6 overflow-y-auto custom-scrollbar`}>
 
-          {/* Main Map & Live Analytics Dashboard */}
-          {activeTab === 'live' && (
-            <LiveDashboard
-              data={data}
-              loading={loading}
-              eventType={eventType} setEventType={setEventType}
-              duration={duration} setDuration={setDuration}
-              rain={rain} setRain={setRain}
-              emergency={emergency} setEmergency={setEmergency}
-              multiEvent={multiEvent} setMultiEvent={setMultiEvent}
-              startTime={startTime} setStartTime={setStartTime}
-              lat={lat} lng={lng} setLat={setLat} setLng={setLng}
-              showPin={showPin} setShowPin={setShowPin}
-              locationName={locationName} setLocationName={setLocationName}
-              targetBoundary={targetBoundary} setTargetBoundary={setTargetBoundary}
-              analyzeEvent={analyzeEvent}
-              isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen}
-              initialMapData={initialMapData}
-            />
-          )}
+          {/* Live Dashboard Tab */}
+          <div style={{ display: activeTab === 'live' ? 'block' : 'none' }}>
+            {visitedTabs.includes('live') && (
+              <LiveDashboard
+                data={data} loading={loading}
+                eventType={eventType} setEventType={setEventType}
+                duration={duration} setDuration={setDuration}
+                rain={rain} setRain={setRain}
+                emergency={emergency} setEmergency={setEmergency}
+                multiEvent={multiEvent} setMultiEvent={setMultiEvent}
+                startTime={startTime} setStartTime={setStartTime}
+                lat={lat} lng={lng} setLat={setLat} setLng={setLng}
+                showPin={showPin} setShowPin={setShowPin}
+                locationName={locationName} setLocationName={setLocationName}
+                targetBoundary={targetBoundary} setTargetBoundary={setTargetBoundary}
+                analyzeEvent={analyzeEvent}
+                isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen}
+                initialMapData={initialMapData}
+              />
+            )}
+          </div>
 
           {/* Tactical Plan Tab */}
-          {activeTab === 'tactical' && (
-            !data ? <EmptyState tabName="Tactical Plan" onGoLive={() => handleTabChange('live')} />
-              : <TacticalPlan data={data} />
-          )}
+          <div style={{ display: activeTab === 'tactical' ? 'block' : 'none' }}>
+            {visitedTabs.includes('tactical') && (
+              !data ? <EmptyState tabName="Tactical Plan" onGoLive={() => handleTabChange('live')} />
+                : <TacticalPlan data={data} />
+            )}
+          </div>
 
           {/* Signals Tab */}
-          {activeTab === 'signals' && (!data ? <EmptyState tabName="Signals" onGoLive={() => handleTabChange('live')} /> : <SignalsTab signals={data?.signals} eventConfig={{latitude: lat, longitude: lng, event_type: eventType, duration_hours: duration, weather_rain: rain}} />)}
+          <div style={{ display: activeTab === 'signals' ? 'block' : 'none' }}>
+            {visitedTabs.includes('signals') && (
+              !data ? <EmptyState tabName="Signals" onGoLive={() => handleTabChange('live')} /> 
+                : <SignalsTab signals={data?.signals} eventConfig={{latitude: lat, longitude: lng, event_type: eventType, duration_hours: duration, weather_rain: rain}} />
+            )}
+          </div>
 
           {/* Dispersal Tab */}
-          {activeTab === 'dispersal' && (!data ? <EmptyState tabName="Crowd Dispersal" onGoLive={() => handleTabChange('live')} /> : (
-            <DispersalTab
-              lat={lat}
-              lng={lng}
-              eventType={eventType}
-              totalIncidents={data.prediction.total_incidents}
-            />
-          ))}
+          <div style={{ display: activeTab === 'dispersal' ? 'block' : 'none' }}>
+            {visitedTabs.includes('dispersal') && (
+              !data ? <EmptyState tabName="Crowd Dispersal" onGoLive={() => handleTabChange('live')} /> : (
+                <DispersalTab
+                  lat={lat}
+                  lng={lng}
+                  eventType={eventType}
+                  totalIncidents={data.prediction.total_incidents}
+                />
+              )
+            )}
+          </div>
 
           {/* Digital Twin Tab */}
-          {activeTab === 'twin' && (!data ? <EmptyState tabName="Digital Twin" onGoLive={() => handleTabChange('live')} /> : (
-            <DigitalTwin
-              lat={lat}
-              lng={lng}
-              predictionData={data.prediction}
-            />
-          ))}
+          <div style={{ display: activeTab === 'twin' ? 'block' : 'none' }}>
+            {visitedTabs.includes('twin') && (
+              !data ? <EmptyState tabName="Digital Twin" onGoLive={() => handleTabChange('live')} /> : (
+                <DigitalTwin
+                  lat={lat}
+                  lng={lng}
+                  predictionData={data.prediction}
+                />
+              )
+            )}
+          </div>
+
+          {/* Alerts Tab */}
+          <div style={{ display: activeTab === 'alerts' ? 'block' : 'none' }}>
+            {visitedTabs.includes('alerts') && (
+              <AlertsTab anomalies={anomalies} setAnomalies={setAnomalies} />
+            )}
+          </div>
 
         </div>
       </div>

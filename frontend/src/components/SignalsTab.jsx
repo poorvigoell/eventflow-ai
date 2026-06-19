@@ -90,8 +90,15 @@ export const SignalsTab = ({ signals, eventConfig }) => {
           }].slice(-30) // keep last 30 steps
         }));
         
-        if (data.done) {
+        const totalCars = data.actions.reduce((sum, a) => sum + a.queue, 0);
+        
+        if (data.done || (totalCars < 10 && data.metrics.crowd_remaining_pct < 10)) {
           stopAutoStep();
+          if (totalCars < 10 && data.metrics.crowd_remaining_pct < 10 && data.step > 0) {
+            setTimeout(() => {
+              alert("Event Traffic and Crowd Evacuation have been successfully resolved! AI Agent is standing down.");
+            }, 300);
+          }
         }
       }
     } catch (err) {
@@ -229,9 +236,9 @@ export const SignalsTab = ({ signals, eventConfig }) => {
       ) : (
         // --- RL AGENT MODE ---
         <div className="space-y-6 animate-fade-in">
-          <div className="bg-[var(--color-surface-hover)] border-l-4 border-green-500 p-4 rounded-lg shadow-xl flex justify-between items-center">
+          <div className="bg-[var(--color-surface-hover)] border-l-4 border-[var(--color-accent)] p-4 rounded-lg shadow-xl flex justify-between items-center">
             <div>
-              <h5 className="text-green-400 font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
+              <h5 className="text-[var(--color-accent)] font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
                 <Activity size={14}/> Live AI Agent Operator
               </h5>
               <p className="text-sm text-[var(--color-text-main)]">The RL Agent is actively monitoring simulated queues and adjusting green splits in real-time.</p>
@@ -240,7 +247,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             {!rlSession ? (
               <button 
                 onClick={startRLSession}
-                className="bg-green-600 hover:bg-green-500 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-green-900/50 transition-all flex items-center gap-2"
+                className="bg-[var(--color-accent)] hover:opacity-80 text-black px-6 py-2 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2"
               >
                 <Zap size={18} /> Initialize Live Session
               </button>
@@ -248,11 +255,11 @@ export const SignalsTab = ({ signals, eventConfig }) => {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <div className="text-xs text-[var(--color-text-muted)]">SIMULATED STEP</div>
-                  <div className="text-2xl font-mono text-green-400 font-bold">{rlSession.step} / 120</div>
+                  <div className="text-2xl font-mono text-[var(--color-accent)] font-bold">{rlSession.step} / 120</div>
                 </div>
                 <button 
                   onClick={() => setIsStepping(!isStepping)}
-                  className={`px-6 py-2 rounded-lg font-bold shadow-lg transition-all ${isStepping ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-green-500 text-black hover:bg-green-400'}`}
+                  className={`px-6 py-2 rounded-lg font-bold shadow-lg transition-all ${isStepping ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-[var(--color-accent)] text-black hover:opacity-80'}`}
                 >
                   {isStepping ? 'PAUSE' : 'RESUME'}
                 </button>
@@ -264,14 +271,14 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             <>
               <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 {rlSession.junctions.map((j, i) => (
-                  <Card key={i} className="bg-[var(--color-surface)] border-t-4 border-t-green-500 relative overflow-hidden group">
+                  <Card key={i} className="bg-[var(--color-surface)] border-t-4 border-t-[var(--color-accent)] relative overflow-hidden group">
                     <div className="text-xs text-[var(--color-text-muted)] truncate mb-2">{j.name}</div>
                     <div className="flex justify-between items-end mb-4">
                       <div>
                         <div className="text-3xl font-mono font-bold text-[var(--color-text-main)]">{Math.round(j.green_sec)}s</div>
                         <div className="text-xs text-[var(--color-text-muted)]">Main Green</div>
                       </div>
-                      <div className={`text-sm font-bold font-mono px-2 py-1 rounded ${j.adjustment > 0 ? 'bg-green-500/20 text-green-400' : j.adjustment < 0 ? 'bg-red-500/20 text-red-400' : 'bg-[var(--color-base)] text-[var(--color-text-muted)]'}`}>
+                      <div className={`text-sm font-bold font-mono px-2 py-1 rounded ${j.adjustment > 0 ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]' : j.adjustment < 0 ? 'bg-red-500/20 text-red-400' : 'bg-[var(--color-base)] text-[var(--color-text-muted)]'}`}>
                         {j.adjustment > 0 ? '+' : ''}{j.adjustment}s
                       </div>
                     </div>
@@ -283,7 +290,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                       </div>
                       <div className="h-1.5 w-full bg-[var(--color-base)] rounded-full overflow-hidden">
                         <div 
-                          className={`h-full transition-all duration-1000 ${j.queue > 400 ? 'bg-red-500' : j.queue > 200 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                          className={`h-full transition-all duration-1000 ${j.queue > 400 ? 'bg-red-500' : j.queue > 200 ? 'bg-yellow-500' : 'bg-[var(--color-accent)]'}`}
                           style={{ width: `${Math.min(100, (j.queue / 600) * 100)}%` }}
                         />
                       </div>
@@ -325,7 +332,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                           itemStyle={{ color: 'var(--color-text-main)' }}
                           labelStyle={{ color: 'var(--color-text-muted)' }}
                         />
-                        <Line type="monotone" dataKey="crowd" stroke="#10b981" strokeWidth={3} dot={false} isAnimationActive={false} />
+                        <Line type="monotone" dataKey="crowd" stroke="var(--color-accent)" strokeWidth={3} dot={false} isAnimationActive={false} />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
