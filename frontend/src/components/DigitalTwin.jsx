@@ -64,7 +64,7 @@ export const DigitalTwin = ({ lat, lng, predictionData }) => {
           <h2 className="text-2xl font-bold flex items-center gap-2 text-[var(--color-text-main)]">
             <Cpu className="text-[var(--color-accent)]" size={28}/> Historical Event Replay (Digital Twin)
           </h2>
-          <p className="text-sm text-[var(--color-text-muted)] mt-1">Comparing current AI predictions against historical similar events in the database.</p>
+          <p className="text-sm text-[var(--color-text-muted)] mt-1">Comparing current ML predictions against historical similar events in the database.</p>
         </div>
       </div>
 
@@ -76,7 +76,7 @@ export const DigitalTwin = ({ lat, lng, predictionData }) => {
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[500px]">
         {/* Predicted Map */}
         <Card className="flex flex-col h-full bg-[var(--color-surface)]">
-          <h4 className="text-center text-[var(--color-text-main)] font-bold mb-1">AI Predicted</h4>
+          <h4 className="text-center text-[var(--color-text-main)] font-bold mb-1">ML Predicted</h4>
           <div className="text-center text-[var(--color-accent)] text-sm font-bold border-b-2 border-[var(--color-accent)] pb-2 mb-4">
             Target: Today
           </div>

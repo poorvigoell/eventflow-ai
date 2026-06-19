@@ -28,7 +28,7 @@ export const LandingPage = ({ onEnter }) => {
       <div className="z-10 text-left space-y-6 max-w-2xl pl-8 md:pl-24 lg:pl-40 pt-10">
         <div className="flex justify-start mb-2">
           {/* Changed color to lime green to match the light */}
-          <span className="text-sm font-bold text-[#76ff03] tracking-[0.2em] uppercase drop-shadow-md">EventFlow AI</span>
+          <span className="text-sm font-bold text-[#76ff03] tracking-[0.2em] uppercase drop-shadow-md">EventFlow</span>
         </div>
 
         <h1 className="text-5xl md:text-7xl font-bold text-white tracking-tight leading-[1.1] drop-shadow-xl">

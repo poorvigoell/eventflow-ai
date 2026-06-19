@@ -131,7 +131,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
               <div className="bg-[var(--color-base)] p-4 rounded-xl border border-[var(--color-border)]">
                 <h4 className="text-sm font-bold text-[var(--color-text-main)] mb-3 flex items-center gap-2">
                   <Zap size={16} style={{ color: accentColor }} />
-                  AI Tactical Plan Generated
+                  Algorithmic Tactical Plan Generated
                 </h4>
                 <ul className="space-y-2">
                   <li className="flex items-start gap-2 text-sm text-[var(--color-text-muted)]">

@@ -203,7 +203,7 @@ function App() {
         <div className="flex items-center gap-4">
           <Activity className="text-[var(--color-accent)]" size={24} />
           <h1 className="text-xl font-bold text-[var(--color-text-main)]">
-            EventFlow AI
+            EventFlow
           </h1>
         </div>
 
