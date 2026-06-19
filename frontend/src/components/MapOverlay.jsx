@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Circle, Marker, Polyline, Polygon, Tooltip as LeafletTooltip, useMapEvents, useMap, ZoomControl, GeoJSON } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, Marker, Polyline, Polygon, Tooltip as LeafletTooltip, useMapEvents, useMap, ZoomControl, GeoJSON, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
@@ -210,22 +210,36 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
 
       <DynamicRoads roads={criticalRoads} />
 
-      {emergencyRoutes?.map((route, idx) => (
-        <React.Fragment key={`emergency-${idx}`}>
-          <Polyline
-            positions={route.primary_path}
-            pathOptions={{ color: '#00d2ff', weight: 4, opacity: 0.6, dashArray: '5, 10' }}
-          >
-            <LeafletTooltip>Primary Hospital Route (Blocked/Risk)</LeafletTooltip>
-          </Polyline>
-          <Polyline
-            positions={route.detour_path}
-            pathOptions={{ color: '#00e676', weight: 5, opacity: 0.9 }}
-          >
-            <LeafletTooltip>Safe Emergency Detour ({route.name})</LeafletTooltip>
-          </Polyline>
-        </React.Fragment>
-      ))}
+      {emergencyRoutes?.map((route, idx) => {
+        const destination = route.detour_path && route.detour_path.length > 0 ? route.detour_path[route.detour_path.length - 1] : null;
+        return (
+          <React.Fragment key={`emergency-${idx}`}>
+            <Polyline
+              positions={route.primary_path}
+              pathOptions={{ color: '#00d2ff', weight: 4, opacity: 0.6, dashArray: '5, 10' }}
+            >
+              <LeafletTooltip>Primary Hospital Route (Blocked/Risk)</LeafletTooltip>
+            </Polyline>
+            <Polyline
+              positions={route.detour_path}
+              pathOptions={{ color: '#00e676', weight: 5, opacity: 0.9 }}
+            >
+              <LeafletTooltip>Safe Emergency Detour ({route.name})</LeafletTooltip>
+            </Polyline>
+            {destination && (
+              <CircleMarker 
+                center={destination} 
+                radius={6}
+                pathOptions={{ color: '#111', fillColor: '#00e676', fillOpacity: 1, weight: 2 }}
+              >
+                <LeafletTooltip direction="top" permanent={false} opacity={1} className="font-bold">
+                  🏥 {route.name}
+                </LeafletTooltip>
+              </CircleMarker>
+            )}
+          </React.Fragment>
+        );
+      })}
 
       <Polygon
         positions={BENGALURU_BOUNDARY_COORDS}

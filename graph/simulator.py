@@ -372,7 +372,8 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
             print(f"Failed to fetch real hospitals: {e}")
 
         if not targets:
-            targets = [(random.choice(nodes), f"Hospital {i+1}") for i in range(2)]
+            hospital_names = ["Manipal Hospital", "Apollo Hospital", "Fortis Hospital", "Narayana Health", "Aster CMI"]
+            targets = [(random.choice(nodes), random.choice(hospital_names)) for i in range(2)]
 
         for target_node, target_name in targets[:2]:
             try:

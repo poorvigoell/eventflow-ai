@@ -1,20 +1,22 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-dark-900: #050505;
-  --color-dark-800: #111111;
-  --color-dark-700: #1a1a1a;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --color-base: #050505;
+  --color-surface: #111111;
+  --color-surface-hover: #1a1a1a;
+  --color-border: rgba(255, 255, 255, 0.1);
   --color-accent: #00e676;
-  --color-accent-blue: #00d2ff;
-  --color-text: #ffffff;
-  --color-text-muted: #a0aec0;
+  --color-text-main: #ffffff;
+  --color-text-muted: #9ca3af;
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: var(--color-dark-900);
-  color: var(--color-text);
+  background-color: var(--color-base);
+  color: var(--color-text-main);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
 }
@@ -30,6 +32,7 @@ body {
 .metric-value {
   background: linear-gradient(45deg, var(--color-accent-blue), #3a7bd5);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   font-weight: 800;
 }
@@ -38,13 +41,16 @@ body {
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
-  background: var(--color-dark-900);
+  background: var(--color-base);
 }
+
 ::-webkit-scrollbar-thumb {
-  background: var(--color-dark-700);
+  background: var(--color-surface);
   border-radius: 3px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #333;
+  background: var(--color-surface-hover);
 }
