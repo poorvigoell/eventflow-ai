@@ -1,4 +1,4 @@
-# EventFlow AI 🚦
+# EventFlow
 
 EventFlow AI is an advanced, AI-powered traffic prediction and simulation dashboard designed to forecast and mitigate urban congestion caused by major public events. It uses machine learning to predict traffic buildup, simulates real-time traffic anomalies, and generates tactical dispatch plans for city management and law enforcement.
 
