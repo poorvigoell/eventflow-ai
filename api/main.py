@@ -23,7 +23,8 @@ from models.train import train_model
 import uuid
 import datetime
 from api.traffic_api import traffic_simulator
-from .config import TOMTOM_ACTIVE
+from .config import TOMTOM_ACTIVE, TOMTOM_BASE_URL, TOMTOM_API_KEY, USE_MOCKS, LLM_ACTIVE, LLM_MODEL
+from api.llm_operator import process_chat_stream
 try:
     from .tomtom_client import get_flow_by_point, get_incidents_in_bbox
 except Exception:
@@ -283,8 +284,6 @@ def get_nearest_road_flow_points(G, lat: float, lng: float, num_roads: int = 5, 
 
     return selected
 
-
-from .config import TOMTOM_ACTIVE
 
 # Global in-memory throttle state for TomTom polling requests
 _TOMTOM_THROTTLE = {}
@@ -591,6 +590,43 @@ def get_transit_data(request: TransitRequest):
     return {
         "pois": pois,
         "corridors": corridors
+    }
+
+@app.get("/api/config")
+def get_config():
+    """Return backend configuration for frontend use."""
+    return {
+        "tomtom_active": TOMTOM_ACTIVE,
+        "mocks_enabled": USE_MOCKS,
+        "graph_nodes": len(G.nodes) if G else 0,
+        "graph_edges": len(G.edges) if G else 0
+    }
+
+# --- LLM Operator Endpoints ---
+
+class OperatorChatRequest(BaseModel):
+    message: str
+    history: list[dict[str, str]] = []
+
+@app.post("/api/operator/chat")
+async def operator_chat(request: OperatorChatRequest):
+    """
+    Accepts a natural language message and processes it through the LLM.
+    Returns a streaming SSE response with tools and final messages.
+    """
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(
+        process_chat_stream(request.message, request.history),
+        media_type="text/event-stream"
+    )
+
+@app.get("/api/operator/status")
+def operator_status():
+    """Health check for LLM availability."""
+    return {
+        "available": LLM_ACTIVE,
+        "model": LLM_MODEL if LLM_ACTIVE else None,
+        "error": "GROQ_API_KEY not configured in .env" if not LLM_ACTIVE else None
     }
 
 @app.get("/api/health")

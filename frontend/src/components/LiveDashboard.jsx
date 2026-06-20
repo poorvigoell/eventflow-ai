@@ -1,4 +1,4 @@
-import { Navigation, Maximize2, Minimize2, Map as MapIcon, Loader2, AlertTriangle, TrendingUp, Activity, Search, Info } from 'lucide-react';
+import { Navigation, Maximize2, Minimize2, Map as MapIcon, Loader2, AlertTriangle, TrendingUp, Activity, Search, Info, Bot, Send } from 'lucide-react';
 import { TimelineChart } from './TimelineChart';
 import MapOverlay from './MapOverlay';
 import Legend from './Legend';
@@ -46,7 +46,7 @@ const InfoTooltip = ({ text, alignRight = false }) => (
 )
 
 export function LiveDashboard({
-  data, loading,
+  data, loading, setData,
   eventType, setEventType,
   duration, setDuration,
   startTime, setStartTime,
@@ -64,6 +64,101 @@ export function LiveDashboard({
 }) {
   const [showBaseline, setShowBaseline] = useState(false);
   const [tomtomError, setTomtomError] = useState('');
+
+  // AI Operator States
+  const [mode, setMode] = useState('manual');
+  const [aiCommand, setAiCommand] = useState('');
+  const [aiLogs, setAiLogs] = useState([]);
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+
+  const handleAiSubmit = async () => {
+    if (!aiCommand.trim() || isAiProcessing) return;
+    setIsAiProcessing(true);
+    setAiLogs([{ type: 'thinking', text: 'Processing request...' }]);
+    
+    const currentMessage = aiCommand;
+    setChatHistory(prev => [...prev, { role: 'user', content: currentMessage }]);
+    setAiCommand('');
+    
+    try {
+      const response = await fetch('http://localhost:8000/api/operator/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: currentMessage, history: chatHistory })
+      });
+      
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      
+      let finalAiMessage = "";
+      let buffer = "";
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        while (buffer.includes('\n\n')) {
+          const splitIndex = buffer.indexOf('\n\n');
+          const eventStr = buffer.slice(0, splitIndex).trim();
+          buffer = buffer.slice(splitIndex + 2);
+          
+          if (!eventStr || !eventStr.startsWith('event:')) continue;
+          
+          const eventLines = eventStr.split('\n');
+          const eventTypeHeader = eventLines[0].replace('event:', '').trim();
+          const dataLine = eventLines.find(l => l.startsWith('data:'));
+          
+          if (!dataLine) continue;
+          
+          const dataPayload = JSON.parse(dataLine.replace('data:', '').trim());
+          
+          if (eventTypeHeader === 'tool_call') {
+            setAiLogs(prev => [...prev, { type: 'tool', text: `Running tool: ${dataPayload.tool}...` }]);
+          } else if (eventTypeHeader === 'tool_result') {
+            if (dataPayload.tool === 'geocode_location') {
+              setLat(dataPayload.result.lat);
+              setLng(dataPayload.result.lng);
+              setLocationName(dataPayload.result.display_name || 'AI Selected Location');
+              setShowPin(true);
+              setAiLogs(prev => [...prev, { type: 'success', text: `📍 Geocoded location` }]);
+            } else if (dataPayload.tool === 'analyze_event') {
+              setAiLogs(prev => [...prev, { type: 'success', text: `🔮 Prediction completed` }]);
+              if (dataPayload.result._locationName) setLocationName(dataPayload.result._locationName);
+              if (dataPayload.result._duration) setDuration(dataPayload.result._duration);
+              if (dataPayload.result._eventType) setEventType(dataPayload.result._eventType);
+              setData(dataPayload.result);
+            } else if (dataPayload.tool === 'trigger_anomaly') {
+              setAiLogs(prev => [...prev, { type: 'success', text: `🚨 Injected Anomaly at ${dataPayload.result.junction}` }]);
+            }
+          } else if (eventTypeHeader === 'message') {
+            finalAiMessage += dataPayload.text;
+            setAiLogs(prev => {
+              const newLogs = [...prev];
+              const last = newLogs[newLogs.length - 1];
+              if (last && last.type === 'message') {
+                last.text = finalAiMessage;
+              } else {
+                newLogs.push({ type: 'message', text: finalAiMessage });
+              }
+              return newLogs;
+            });
+          } else if (eventTypeHeader === 'error') {
+            setAiLogs(prev => [...prev, { type: 'error', text: dataPayload.text }]);
+          } else if (eventTypeHeader === 'done') {
+            setChatHistory(prev => [...prev, { role: 'model', content: finalAiMessage }]);
+          }
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setAiLogs(prev => [...prev, { type: 'error', text: 'Error connecting to AI Operator.' }]);
+    } finally {
+      setIsAiProcessing(false);
+    }
+  };
 
   // Fetch TomTom baseline when toggled
   useEffect(() => {
@@ -142,12 +237,29 @@ export function LiveDashboard({
 
       {/* 1. Tracking Setup (Horizontal Bar) */}
       <div className="bg-[var(--color-surface)] p-5 rounded-xl shadow-2xl relative z-[70]">
-        <div className="flex items-center gap-2 mb-4 border-b border-[var(--color-border)] pb-3">
-          <Navigation className="text-[var(--color-accent)]" size={18} />
-          <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Tracking Setup</h2>
+        <div className="flex justify-between items-center mb-4 border-b border-[var(--color-border)] pb-3">
+          <div className="flex items-center gap-2">
+            <Navigation className="text-[var(--color-accent)]" size={18} />
+            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Tracking Setup</h2>
+          </div>
+          <div className="flex bg-[var(--color-base)] p-1 rounded-lg">
+            <button 
+              onClick={() => setMode('manual')}
+              className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${mode === 'manual' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-main)] shadow' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]'}`}
+            >
+              Manual Mode
+            </button>
+            <button 
+              onClick={() => setMode('ai')}
+              className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors flex items-center gap-1.5 ${mode === 'ai' ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] shadow border border-[var(--color-accent)]/30' : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)]'}`}
+            >
+              <Bot size={14} /> AI Mode
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-7 gap-4 items-center">
+        {mode === 'manual' ? (
+          <div className="grid grid-cols-1 xl:grid-cols-7 gap-4 items-center">
           <div className="flex flex-col h-full justify-center">
             <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Event Category</label>
             <CustomSelect value={eventType} onChange={setEventType} options={eventOptions} />
@@ -227,7 +339,51 @@ export function LiveDashboard({
               {loading ? "Simulating..." : "Launch Prediction"}
             </button>
           </div>
-        </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <div className="flex gap-3">
+              <textarea
+                value={aiCommand}
+                onChange={(e) => setAiCommand(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAiSubmit();
+                  }
+                }}
+                placeholder="e.g., There's a massive protest breaking out at Cubbon Park, redirect traffic..."
+                className="flex-1 bg-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-4 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors min-h-[60px] resize-none"
+                disabled={isAiProcessing}
+              />
+              <button
+                onClick={handleAiSubmit}
+                disabled={isAiProcessing || !aiCommand.trim()}
+                className="w-[120px] bg-[var(--color-accent)] hover:bg-[#00c853] active:opacity-75 text-[#050505] font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex flex-col items-center justify-center gap-1 shrink-0"
+              >
+                {isAiProcessing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                {isAiProcessing ? "Working" : "Send"}
+              </button>
+            </div>
+            
+            {aiLogs.length > 0 && (
+              <div className="bg-[var(--color-base)] rounded-xl p-4 border border-[var(--color-border)] max-h-[150px] overflow-y-auto custom-scrollbar flex flex-col gap-2">
+                {aiLogs.map((log, idx) => (
+                  <div key={idx} className={`text-sm flex gap-2 items-start ${
+                    log.type === 'thinking' ? 'text-[var(--color-text-muted)] italic animate-pulse' :
+                    log.type === 'tool' ? 'text-blue-400 font-medium' :
+                    log.type === 'success' ? 'text-[var(--color-accent)] font-medium' :
+                    log.type === 'error' ? 'text-red-400 font-bold' :
+                    'text-[var(--color-text-main)]'
+                  }`}>
+                    {log.type === 'message' && <Bot size={16} className="mt-0.5 shrink-0 text-[var(--color-accent)]" />}
+                    <span className="whitespace-pre-wrap">{log.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 2. Map (Fixed/Fullscreen Height) */}
@@ -299,7 +455,7 @@ export function LiveDashboard({
               <h2 className="text-lg font-bold text-[var(--color-text-main)]">Simulating Dispatch Patterns...</h2>
               <p className="text-sm text-[var(--color-text-muted)] mt-1">Calculating risk probabilities and timeline.</p>
             </div>
-          ) : data ? (
+          ) : (data && data.prediction) ? (
             <div className="flex flex-col gap-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Timeline Chart */}
@@ -398,9 +554,15 @@ export function LiveDashboard({
                 </div>
               </div>
             </div>
+          ) : data && data.error ? (
+            <div className="flex flex-col items-center justify-center h-[250px] bg-[var(--color-surface)] border border-red-500/30 rounded-xl shadow-2xl mt-10">
+              <AlertTriangle size={48} className="mb-4 text-red-500" />
+              <h2 className="text-xl font-bold text-white mb-2">Error Processing Event</h2>
+              <p className="text-sm text-red-400">{data.error}</p>
+            </div>
           ) : (
-            <div className="h-[250px] bg-[var(--color-surface)] rounded-xl flex flex-col items-center justify-center text-[var(--color-text-muted)] shadow-2xl">
-              <Activity size={32} className="mb-3 opacity-50" />
+            <div className="flex flex-col items-center justify-center h-[250px] text-[var(--color-text-muted)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-2xl mt-10">
+              <Activity size={48} className="mb-4 opacity-50 text-[var(--color-accent)]" />
               <p className="text-sm">Click "Launch Prediction" to generate real-time analytics.</p>
             </div>
           )}

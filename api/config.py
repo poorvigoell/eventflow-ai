@@ -17,3 +17,8 @@ TOMTOM_BASE_URL = os.getenv('TOMTOM_BASE_URL', 'https://api.tomtom.com')
 
 # If mocks are enabled, all external integrations should default to simulated behavior.
 TOMTOM_ACTIVE = USE_TOMTOM and bool(TOMTOM_API_KEY) and not USE_MOCKS
+
+# LLM Configuration
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+LLM_MODEL = os.getenv('LLM_MODEL', 'llama-3.3-70b-versatile')
+LLM_ACTIVE = bool(GROQ_API_KEY)

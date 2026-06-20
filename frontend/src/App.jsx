@@ -128,6 +128,7 @@ function App() {
     setLoading(true)
     setData(null) // Clear previous analytics
     try {
+      console.log("Sending prediction request...");
       const response = await axios.post('http://localhost:8000/api/predict', {
         event_type: eventType,
         latitude: lat,
@@ -138,12 +139,16 @@ function App() {
         weather_rain: rain,
         multi_event_mode: multiEvent,
         emergency_mode: emergency
-      })
+      }, { timeout: 60000 })
+      console.log("Prediction response received", response.data);
       setData(response.data)
     } catch (error) {
       console.error("Error fetching data:", error)
+      const msg = error.response?.data?.detail || error.message;
+      window.alert(`Simulation failed: ${msg}. Please check the backend logs.`);
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   // Save to cache whenever relevant state changes
@@ -231,7 +236,7 @@ function App() {
           <div style={{ display: activeTab === 'live' ? 'block' : 'none' }}>
             {visitedTabs.includes('live') && (
               <LiveDashboard
-                data={data} loading={loading}
+                data={data} loading={loading} setData={setData}
                 eventType={eventType} setEventType={setEventType}
                 duration={duration} setDuration={setDuration}
                 rain={rain} setRain={setRain}
@@ -253,7 +258,7 @@ function App() {
           {/* Tactical Plan Tab */}
           <div style={{ display: activeTab === 'tactical' ? 'block' : 'none' }}>
             {visitedTabs.includes('tactical') && (
-              !data ? <EmptyState tabName="Tactical Plan" onGoLive={() => handleTabChange('live')} />
+              (!data || data.error || !data.prediction) ? <EmptyState tabName="Tactical Plan" onGoLive={() => handleTabChange('live')} />
                 : <TacticalPlan data={data} />
             )}
           </div>
@@ -261,7 +266,7 @@ function App() {
           {/* Signals Tab */}
           <div style={{ display: activeTab === 'signals' ? 'block' : 'none' }}>
             {visitedTabs.includes('signals') && (
-              !data ? <EmptyState tabName="Signals" onGoLive={() => handleTabChange('live')} /> 
+              (!data || data.error || !data.prediction) ? <EmptyState tabName="Signals" onGoLive={() => handleTabChange('live')} /> 
                 : <SignalsTab signals={data?.signals} eventConfig={{latitude: lat, longitude: lng, event_type: eventType, duration_hours: duration, weather_rain: rain}} />
             )}
           </div>
@@ -269,7 +274,7 @@ function App() {
           {/* Dispersal Tab */}
           <div style={{ display: activeTab === 'dispersal' ? 'block' : 'none' }}>
             {visitedTabs.includes('dispersal') && (
-              !data ? <EmptyState tabName="Crowd Dispersal" onGoLive={() => handleTabChange('live')} /> : (
+              (!data || data.error || !data.prediction) ? <EmptyState tabName="Crowd Dispersal" onGoLive={() => handleTabChange('live')} /> : (
                 <DispersalTab
                   lat={lat}
                   lng={lng}
@@ -283,7 +288,7 @@ function App() {
           {/* Digital Twin Tab */}
           <div style={{ display: activeTab === 'twin' ? 'block' : 'none' }}>
             {visitedTabs.includes('twin') && (
-              !data ? <EmptyState tabName="Digital Twin" onGoLive={() => handleTabChange('live')} /> : (
+              (!data || data.error || !data.prediction) ? <EmptyState tabName="Digital Twin" onGoLive={() => handleTabChange('live')} /> : (
                 <DigitalTwin
                   lat={lat}
                   lng={lng}

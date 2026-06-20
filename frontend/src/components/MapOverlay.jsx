@@ -57,6 +57,77 @@ const BENGALURU_BOUNDS = [
   [13.3, 77.8]  // NorthEast corner
 ];
 
+function DynamicRoads({ roads, overlayVisibility, roadZoom, setRoadZoom }) {
+  const map = useMap();
+
+  useEffect(() => {
+    setRoadZoom(map.getZoom());
+    const onZoom = () => setRoadZoom(map.getZoom());
+    map.on('zoomend', onZoom);
+    return () => map.off('zoomend', onZoom);
+  }, [map, setRoadZoom]);
+
+  return (
+    <>
+      {roads?.map((road, idx) => {
+        const visible = overlayVisibility ? (overlayVisibility[`risk-${idx}`] ?? true) : true;
+        if (!visible) return null;
+        const baseWeight = Math.max(2, (road.weight || 1) * 1.5);
+        const scaledWeight = Math.min(14, Math.max(2.5, Math.round(baseWeight * Math.pow(1.15, roadZoom - 12))));
+        
+        // Color based on risk level (idx 0 is highest risk)
+        const colors = ['#ff2a00', '#ff4b2b', '#ff8c00', '#ffb700', '#ffea00'];
+        const roadColor = colors[idx % colors.length];
+
+        return (
+          <Polyline
+            key={idx}
+            positions={road.coordinates}
+            pathOptions={{
+              color: roadColor,
+              weight: scaledWeight,
+              opacity: 0.9,
+              lineCap: 'round',
+              lineJoin: 'round'
+            }}
+          >
+            <LeafletTooltip>High Risk Route</LeafletTooltip>
+          </Polyline>
+        );
+      })}
+    </>
+  );
+}
+
+// Controller component inside MapContainer to receive map instance
+function OverlayController({ overlayItemsRef }) {
+  const map = useMap();
+  useEffect(() => {
+    const handler = (e) => {
+      const { id } = e.detail || {};
+      if (!id) return;
+      const items = overlayItemsRef.current || [];
+      const item = items.find(it => it.id === id);
+      if (!item || !item.positions || item.positions.length === 0) return;
+      // compute bounds
+      const lats = item.positions.map(p => p[0]);
+      const lngs = item.positions.map(p => p[1]);
+      const south = Math.min(...lats);
+      const north = Math.max(...lats);
+      const west = Math.min(...lngs);
+      const east = Math.max(...lngs);
+      try {
+        map.fitBounds([[south, west], [north, east]], { padding: [40, 40] });
+      } catch (err) {
+        console.error('Overlay focus error', err);
+      }
+    };
+    window.addEventListener('overlayFocus', handler);
+    return () => window.removeEventListener('overlayFocus', handler);
+  }, [map, overlayItemsRef]);
+  return null;
+}
+
 export default function MapOverlay({ lat, lng, showPin, setLocation, locationName, setLocationName, predictionData, criticalRoads, emergencyRoutes, initialMapData, targetBoundary, setTargetBoundary }) {
 
   const [externalTraffic, setExternalTraffic] = React.useState(null);
@@ -201,76 +272,7 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
     );
   }
 
-  function DynamicRoads({ roads, overlayVisibility }) {
-    const map = useMap();
 
-    useEffect(() => {
-      setRoadZoom(map.getZoom());
-      const onZoom = () => setRoadZoom(map.getZoom());
-      map.on('zoomend', onZoom);
-      return () => map.off('zoomend', onZoom);
-    }, [map]);
-
-    return (
-      <>
-        {roads?.map((road, idx) => {
-          const visible = overlayVisibility ? (overlayVisibility[`risk-${idx}`] ?? true) : true;
-          if (!visible) return null;
-          const baseWeight = Math.max(2, (road.weight || 1) * 1.5);
-          const scaledWeight = Math.min(14, Math.max(2.5, Math.round(baseWeight * Math.pow(1.15, roadZoom - 12))));
-          
-          // Color based on risk level (idx 0 is highest risk)
-          const colors = ['#ff2a00', '#ff4b2b', '#ff8c00', '#ffb700', '#ffea00'];
-          const roadColor = colors[idx % colors.length];
-
-          return (
-            <Polyline
-              key={idx}
-              positions={road.coordinates}
-              pathOptions={{
-                color: roadColor,
-                weight: scaledWeight,
-                opacity: 0.9,
-                lineCap: 'round',
-                lineJoin: 'round'
-              }}
-            >
-              <LeafletTooltip>High Risk Route</LeafletTooltip>
-            </Polyline>
-          );
-        })}
-      </>
-    );
-  }
-
-  // Controller component inside MapContainer to receive map instance
-  function OverlayController({ overlayItemsRef }) {
-    const map = useMap();
-    useEffect(() => {
-      const handler = (e) => {
-        const { id } = e.detail || {};
-        if (!id) return;
-        const items = overlayItemsRef.current || [];
-        const item = items.find(it => it.id === id);
-        if (!item || !item.positions || item.positions.length === 0) return;
-        // compute bounds
-        const lats = item.positions.map(p => p[0]);
-        const lngs = item.positions.map(p => p[1]);
-        const south = Math.min(...lats);
-        const north = Math.max(...lats);
-        const west = Math.min(...lngs);
-        const east = Math.max(...lngs);
-        try {
-          map.fitBounds([[south, west], [north, east]], { padding: [40, 40] });
-        } catch (err) {
-          console.error('Overlay focus error', err);
-        }
-      };
-      window.addEventListener('overlayFocus', handler);
-      return () => window.removeEventListener('overlayFocus', handler);
-    }, [map, overlayItemsRef]);
-    return null;
-  }
 
   // Active prediction state
   const radius = predictionData.total_incidents * 15;
@@ -311,7 +313,7 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
         <LeafletTooltip>Spillover Zone</LeafletTooltip>
       </Circle>
 
-      <DynamicRoads roads={criticalRoads} overlayVisibility={overlayVisibility} />
+      <DynamicRoads roads={criticalRoads} overlayVisibility={overlayVisibility} roadZoom={roadZoom} setRoadZoom={setRoadZoom} />
 
       {emergencyRoutes?.map((route, idx) => {
         const destination = route.detour_path && route.detour_path.length > 0 ? route.detour_path[route.detour_path.length - 1] : null;

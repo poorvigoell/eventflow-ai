@@ -110,12 +110,17 @@ def get_edge_name(edge_data):
 
 def find_nearest_node(G, lat, lng):
     try:
-        return ox.distance.nearest_nodes(G, X=lng, Y=lat)
+        # Try finding nearest edge to avoid isolated/disconnected nodes (common inside parks)
+        nearest_edge = ox.distance.nearest_edges(G, X=lng, Y=lat)
+        return nearest_edge[0]
     except Exception:
-        return min(
-            G.nodes(),
-            key=lambda n: (G.nodes[n].get('x', 0) - lng) ** 2 + (G.nodes[n].get('y', 0) - lat) ** 2
-        )
+        try:
+            return ox.distance.nearest_nodes(G, X=lng, Y=lat)
+        except Exception:
+            return min(
+                G.nodes(),
+                key=lambda n: (G.nodes[n].get('x', 0) - lng) ** 2 + (G.nodes[n].get('y', 0) - lat) ** 2
+            )
 
 
 def _path_road_names(G, path):
@@ -295,7 +300,7 @@ def get_critical_roads(G, lat, lng, radius=1000):
     Finds critical roads around the venue using edge betweenness centrality.
     """
     try:
-        center_node = ox.distance.nearest_nodes(G, X=lng, Y=lat)
+        center_node = find_nearest_node(G, lat, lng)
         # Create a small subgraph for fast computation (within ~1.5km walking distance)
         subgraph = nx.ego_graph(G, center_node, radius=radius, distance='length')
         
@@ -341,11 +346,7 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
     Finds primary routes to mock hospitals and dynamic detours that avoid specified blockade edges.
     """
     try:
-        try:
-            center_node = ox.distance.nearest_nodes(G, X=lng, Y=lat)
-        except Exception:
-            # Fallback for custom mock test graphs that don't have OSMnx projection setup
-            center_node = min(G.nodes(), key=lambda n: (G.nodes[n].get('x', 0) - lng)**2 + (G.nodes[n].get('y', 0) - lat)**2)
+        center_node = find_nearest_node(G, lat, lng)
         nodes = list(G.nodes())
         
         routes = []
