@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/components';
-import { Radio, Brain, Activity, Zap } from 'lucide-react';
+import { Radio, Brain, Activity, Zap, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 export const SignalsTab = ({ signals, eventConfig }) => {
@@ -9,6 +9,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
   const [rlSession, setRlSession] = useState(null);
   const [rlMetrics, setRlMetrics] = useState({ history: [] });
   const [isStepping, setIsStepping] = useState(false);
+  const [isStartingRL, setIsStartingRL] = useState(false);
   
   const timerRef = useRef(null);
 
@@ -27,6 +28,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
   }, []);
   
   const startRLSession = async () => {
+    setIsStartingRL(true);
     try {
       const response = await fetch('http://localhost:8000/api/rl/start-session', {
         method: 'POST',
@@ -56,6 +58,8 @@ export const SignalsTab = ({ signals, eventConfig }) => {
       }
     } catch (err) {
       console.error("Error starting RL session:", err);
+    } finally {
+      setIsStartingRL(false);
     }
   };
   
@@ -247,9 +251,11 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             {!rlSession ? (
               <button 
                 onClick={startRLSession}
-                className="bg-[var(--color-accent)] hover:opacity-80 text-black px-6 py-2 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2"
+                disabled={isStartingRL}
+                className="bg-[var(--color-accent)] hover:opacity-80 text-black px-6 py-2 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Zap size={18} /> Initialize Live Session
+                {isStartingRL ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16}/>}
+                {isStartingRL ? "Initializing..." : "Initialize Agent"}
               </button>
             ) : (
               <div className="flex items-center gap-4">

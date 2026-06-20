@@ -231,7 +231,7 @@ export function LiveDashboard({
       </div>
 
       {/* 2. Map (Fixed/Fullscreen Height) */}
-      <div className={`w-full overflow-hidden shadow-2xl shrink-0 ${isFullscreen ? 'fixed inset-0 z-[100] bg-[var(--color-base)] rounded-none' : 'relative rounded-xl h-[500px]'}`}>
+      <div className={`w-full overflow-hidden shadow-2xl shrink-0 ${isFullscreen ? 'fixed inset-0 z-[100] bg-[var(--color-base)] rounded-none' : 'relative z-[10] rounded-xl h-[500px]'}`}>
         <div className={`absolute z-[60] flex justify-between items-center w-full p-4 pointer-events-none`}>
           <h2 className="text-sm font-bold flex items-center gap-2 bg-[var(--color-surface)]/80 backdrop-blur-md px-4 py-2 rounded-xl pointer-events-auto shadow-2xl uppercase tracking-widest text-[var(--color-text-main)]">
             <MapIcon className="text-[var(--color-accent)]" size={16} /> Live Dispatch Map
