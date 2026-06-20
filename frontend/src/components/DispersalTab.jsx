@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Card, MetricBox } from './ui/components';
-import { Route } from 'lucide-react';
+import { Route, Info } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, useMap, ZoomControl, Rectangle, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet.heat';
@@ -206,9 +206,23 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
           </div>
 
           <div className="w-[320px] flex flex-col gap-4">
-            <Card>
+            <Card className="relative overflow-visible">
+              <div className="absolute top-2 right-2 group z-50">
+                <button
+                  type="button"
+                  className="rounded-full bg-gradient-to-br from-[#22c55e] to-[#10b981] p-2 text-white shadow-lg shadow-black/25 ring-2 ring-black/20 transition hover:from-[#4ade80] hover:to-[#22c55e]"
+                >
+                  <Info size={16} />
+                </button>
+                <div className="pointer-events-none absolute right-0 top-12 z-50 hidden w-80 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text-main)] shadow-xl group-hover:block">
+                  <strong className="block mb-2 text-[var(--color-text-main)]">Economic Segment Calculation</strong>
+                  <p className="leading-6 text-[var(--color-text-muted)]">
+                    This score combines the predicted crowd dispersal model with local economic sensitivity. It weighs the expected proportion of premium, middle and mass segments against the likely revenue impact from nearby venues, transportation mode shifts, and disruption penalties.
+                  </p>
+                </div>
+              </div>
               <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-widest mb-1">Economic Segment</p>
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-start items-center gap-4 mb-4">
                 <h3 className="text-2xl font-bold text-[var(--color-text-main)]">{eco_profile.segment}</h3>
                 <div className="bg-[var(--color-accent)] text-[#050505] w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl">
                   {Math.round(eco_profile.score * 100)}

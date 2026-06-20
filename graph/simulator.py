@@ -436,6 +436,14 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
                 path_nodes_detour = paths_detour[target_node]
                 path_coords_detour = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in path_nodes_detour]
 
+                # Prepend the actual pin location to ensure routes visually start from the pin
+                # (nearest_nodes snaps to nearest graph node, which may be offset)
+                pin_coord = [lat, lng]
+                if path_coords_primary and path_coords_primary[0] != pin_coord:
+                    path_coords_primary.insert(0, pin_coord)
+                if path_coords_detour and path_coords_detour[0] != pin_coord:
+                    path_coords_detour.insert(0, pin_coord)
+
                 routes.append({
                     "primary_path": path_coords_primary,
                     "detour_path": path_coords_detour,

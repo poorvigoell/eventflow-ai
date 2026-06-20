@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import random
@@ -17,10 +17,19 @@ from utils.transit_infrastructure import get_transit_pois, get_metro_corridor_po
 from utils.economic_scorer import get_economic_score
 import graph.build_network as build_network
 import osmnx as ox
+import networkx as nx
+from shapely.geometry import LineString, Point
 from models.train import train_model
 import uuid
 import datetime
 from api.traffic_api import traffic_simulator
+from .config import TOMTOM_ACTIVE
+try:
+    from .tomtom_client import get_flow_by_point, get_incidents_in_bbox
+except Exception:
+    # tomtom client may be missing if packages not installed; endpoints will fallback
+    get_flow_by_point = None
+    get_incidents_in_bbox = None
 try:
     from stable_baselines3 import PPO
     from rl.gym_env import EventFlowEnv
@@ -219,6 +228,148 @@ def get_initial_map_data(lat: float = 12.9788, lng: float = 77.5996):
     return {
         "metro_corridors": corridors
     }
+
+
+def get_nearest_road_flow_points(G, lat: float, lng: float, num_roads: int = 5, search_radius: float = 1200):
+    if G is None:
+        return []
+    try:
+        center_node = ox.distance.nearest_nodes(G, X=lng, Y=lat)
+    except Exception:
+        center_node = min(G.nodes(), key=lambda n: (G.nodes[n].get('x', 0) - lng)**2 + (G.nodes[n].get('y', 0) - lat)**2)
+
+    subgraph = nx.ego_graph(G, center_node, radius=search_radius, distance='length')
+    point = Point(lng, lat)
+    candidates = []
+    for u, v, k, data in subgraph.edges(keys=True, data=True):
+        geom = data.get('geometry')
+        if geom is None:
+            u_data = subgraph.nodes[u]
+            v_data = subgraph.nodes[v]
+            geom = LineString([(u_data['x'], u_data['y']), (v_data['x'], v_data['y'])])
+        dist = point.distance(geom)
+        road_name = data.get('name') or data.get('highway') or 'Unnamed Road'
+        if isinstance(road_name, list):
+            road_name = road_name[0] if road_name else 'Unnamed Road'
+        sample = geom.interpolate(0.5, normalized=True)
+        candidates.append({
+            'road_name': road_name,
+            'edge': (u, v, k),
+            'distance': dist,
+            'sample_lat': round(sample.y, 6),
+            'sample_lng': round(sample.x, 6),
+        })
+
+    candidates.sort(key=lambda item: item['distance'])
+    selected = []
+    seen_names = set()
+    for item in candidates:
+        if len(selected) >= num_roads:
+            break
+        key = item['road_name'] if item['road_name'] != 'Unnamed Road' else item['edge']
+        if key in seen_names:
+            continue
+        seen_names.add(key)
+        selected.append(item)
+
+    if len(selected) < num_roads:
+        for item in candidates:
+            if len(selected) >= num_roads:
+                break
+            if item['edge'] not in {s['edge'] for s in selected}:
+                selected.append(item)
+
+    return selected
+
+
+from .config import TOMTOM_ACTIVE
+
+# Global in-memory throttle state for TomTom polling requests
+_TOMTOM_THROTTLE = {}
+_TOMTOM_THROTTLE_TTL_SECONDS = 60
+_TOMTOM_THROTTLE_MAX_PER_MINUTE = 1
+
+@app.get('/api/external/tomtom/flow')
+async def external_tomtom_flow(request: Request, lat: float, lng: float, radius_m: int = 1000):
+    """Return TomTom flow data for a point. Falls back to None if API key missing."""
+    if not TOMTOM_ACTIVE:
+        return {"mock": True, "message": "TomTom disabled"}
+    if not get_flow_by_point:
+        return {"mock": True, "message": "TomTom client unavailable"}
+
+    client_ip = request.client.host if request.client else 'unknown'
+    now_ts = int(datetime.datetime.utcnow().timestamp())
+    throttle_entry = _TOMTOM_THROTTLE.get(client_ip, [])
+    throttle_entry = [ts for ts in throttle_entry if now_ts - ts < _TOMTOM_THROTTLE_TTL_SECONDS]
+
+    if len(throttle_entry) >= _TOMTOM_THROTTLE_MAX_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="TomTom refresh limit reached. Please wait before retrying."
+        )
+
+    throttle_entry.append(now_ts)
+    _TOMTOM_THROTTLE[client_ip] = throttle_entry
+
+    try:
+        data = await get_flow_by_point(lat, lng)
+        return {"mock": False, "data": data}
+    except Exception as e:
+        print('TomTom flow error:', e)
+        return {"mock": True, "message": str(e)}
+
+
+@app.get('/api/external/tomtom/flows')
+async def external_tomtom_flows(request: Request, lat: float, lng: float, num_roads: int = 5):
+    """Return TomTom flow data for the nearest road samples around a point."""
+    if not TOMTOM_ACTIVE:
+        return {"mock": True, "message": "TomTom disabled"}
+    if not get_flow_by_point:
+        return {"mock": True, "message": "TomTom client unavailable"}
+
+    client_ip = request.client.host if request.client else 'unknown'
+    now_ts = int(datetime.datetime.utcnow().timestamp())
+    throttle_entry = _TOMTOM_THROTTLE.get(client_ip, [])
+    throttle_entry = [ts for ts in throttle_entry if now_ts - ts < _TOMTOM_THROTTLE_TTL_SECONDS]
+
+    if len(throttle_entry) >= _TOMTOM_THROTTLE_MAX_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="TomTom refresh limit reached. Please wait before retrying."
+        )
+
+    throttle_entry.append(now_ts)
+    _TOMTOM_THROTTLE[client_ip] = throttle_entry
+
+    roads = get_nearest_road_flow_points(G, lat, lng, num_roads=num_roads)
+    flow_results = []
+    for road in roads:
+        try:
+            flow_data = await get_flow_by_point(road['sample_lat'], road['sample_lng'])
+        except Exception as e:
+            print('TomTom flow error for road', road['road_name'], e)
+            flow_data = None
+        flow_results.append({
+            'road_name': road['road_name'],
+            'sample_point': {'lat': road['sample_lat'], 'lng': road['sample_lng']},
+            'flow': flow_data
+        })
+
+    return {"mock": False, "data": flow_results}
+
+
+@app.get('/api/external/tomtom/incidents')
+async def external_tomtom_incidents(min_lat: float, min_lng: float, max_lat: float, max_lng: float):
+    if not TOMTOM_ACTIVE:
+        return {"mock": True, "message": "TomTom disabled"}
+    if not get_incidents_in_bbox:
+        return {"mock": True, "message": "TomTom client unavailable"}
+    try:
+        data = await get_incidents_in_bbox(min_lat, min_lng, max_lat, max_lng)
+        return {"mock": False, "data": data}
+    except Exception as e:
+        print('TomTom incidents error:', e)
+        return {"mock": True, "message": str(e)}
 
 class TacticalRequest(BaseModel):
     total_incidents: int

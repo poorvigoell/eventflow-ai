@@ -47,6 +47,39 @@ export function LiveDashboard({
   isFullscreen, setIsFullscreen,
   initialMapData
 }) {
+  const [autoTomtom, setAutoTomtom] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const [tomtomError, setTomtomError] = useState('');
+
+  useEffect(() => {
+    if (refreshCooldown <= 0) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setRefreshCooldown((current) => Math.max(current - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [refreshCooldown]);
+
+  // Auto-poll TomTom hourly when enabled
+  useEffect(() => {
+    let tid = null;
+    const runFetch = async () => {
+      try {
+        const res = await fetch(`http://localhost:8000/api/external/tomtom/flows?lat=${lat}&lng=${lng}&num_roads=5`);
+        const payload = await res.json();
+        if (!payload.mock) window.dispatchEvent(new CustomEvent('externalTraffic', { detail: { flow: payload.data } }));
+      } catch (err) { console.error('Auto TomTom fetch error', err); }
+    };
+    if (autoTomtom) {
+      // run immediately then every hour
+      runFetch();
+      tid = setInterval(runFetch, 60 * 60 * 1000);
+    }
+    return () => { if (tid) clearInterval(tid); };
+  }, [autoTomtom, lat, lng]);
   useEffect(() => {
     // Force leaflet to recalculate container size on fullscreen toggle
     setTimeout(() => {
@@ -191,13 +224,56 @@ export function LiveDashboard({
           <h2 className="text-sm font-bold flex items-center gap-2 bg-[var(--color-surface)]/80 backdrop-blur-md px-4 py-2 rounded-xl pointer-events-auto shadow-2xl uppercase tracking-widest text-[var(--color-text-main)]">
             <MapIcon className="text-[var(--color-accent)]" size={16} /> Live Dispatch Map
           </h2>
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="flex items-center gap-2 bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface-hover)] px-3 py-2 rounded-xl transition-colors text-xs font-bold text-[var(--color-text-main)] backdrop-blur-md shadow-2xl pointer-events-auto uppercase"
-          >
-            {isFullscreen ? <><Minimize2 size={14} /> Exit Fullscreen</> : <><Maximize2 size={14} /> Fullscreen</>}
-          </button>
+          <div className="flex items-center gap-3 pointer-events-auto">
+            <div className="flex items-center gap-2 bg-[var(--color-surface)] rounded-lg p-2 border border-[var(--color-border)]">
+              <button
+                onClick={async () => {
+                  if (refreshCooldown > 0) {
+                    return;
+                  }
+                  setTomtomError('');
+                  setRefreshCooldown(60);
+                  try {
+                    const res = await fetch(`http://localhost:8000/api/external/tomtom/flows?lat=${lat}&lng=${lng}&num_roads=5`);
+                    const payload = await res.json();
+                    if (!res.ok) {
+                      const message = payload?.detail || payload?.message || 'TomTom refresh failed';
+                      setTomtomError(message);
+                      return;
+                    }
+                    if (!payload.mock) {
+                      window.dispatchEvent(new CustomEvent('externalTraffic', { detail: { flow: payload.data } }));
+                    } else {
+                      const message = payload.message || 'TomTom fallback active';
+                      setTomtomError(message);
+                    }
+                  } catch (err) {
+                    console.error(err);
+                    setTomtomError('Unable to contact TomTom service.');
+                  }
+                }}
+                disabled={refreshCooldown > 0}
+                className="px-3 py-1 rounded-md text-xs font-bold bg-[var(--color-accent)] text-black disabled:opacity-50 disabled:cursor-not-allowed"
+              >{refreshCooldown > 0 ? `Refresh Traffic (${refreshCooldown}s)` : 'Refresh Traffic'}</button>
+              <label className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+                <input id="autoTomtom" type="checkbox" checked={autoTomtom} onChange={(e) => setAutoTomtom(e.target.checked)} className="w-4 h-4" />
+                Auto (hourly)
+              </label>
+            </div>
+
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="flex items-center gap-2 bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface-hover)] px-3 py-2 rounded-xl transition-colors text-xs font-bold text-[var(--color-text-main)] backdrop-blur-md shadow-2xl uppercase"
+            >
+              {isFullscreen ? <><Minimize2 size={14} /> Exit Fullscreen</> : <><Maximize2 size={14} /> Fullscreen</>}
+            </button>
+          </div>
         </div>
+        {tomtomError && (
+          <div className="absolute left-4 top-[72px] z-[70] w-[calc(100%-2rem)] rounded-xl border border-amber-500 bg-amber-500/10 text-amber-700 px-4 py-3 text-xs font-medium">
+            {tomtomError}
+          </div>
+        )}
 
         <div className="w-full h-full z-0 relative pointer-events-auto">
           <MapOverlay
@@ -230,7 +306,7 @@ export function LiveDashboard({
             <div className="flex flex-col gap-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Timeline Chart */}
-              <div className="lg:col-span-1 bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] p-5 rounded-xl shadow-2xl flex flex-col min-w-0 relative overflow-hidden">
+              <div className="lg:col-span-1 h-[250px] bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] p-5 rounded-xl shadow-2xl flex flex-col min-w-0 relative overflow-hidden">
                 <TimelineChart timelineData={data.timeline} />
               </div>
 

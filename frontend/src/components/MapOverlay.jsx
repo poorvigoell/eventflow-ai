@@ -62,6 +62,18 @@ const BENGALURU_BOUNDS = [
 
 export default function MapOverlay({ lat, lng, showPin, setLocation, locationName, setLocationName, predictionData, criticalRoads, emergencyRoutes, initialMapData, targetBoundary, setTargetBoundary }) {
 
+  const [externalTraffic, setExternalTraffic] = React.useState(null);
+  const [roadZoom, setRoadZoom] = useState(14);
+
+  // Listen for external traffic payloads (dispatched by LiveDashboard)
+  useEffect(() => {
+    const handler = (e) => {
+      setExternalTraffic(e.detail || null);
+    };
+    window.addEventListener('externalTraffic', handler);
+    return () => window.removeEventListener('externalTraffic', handler);
+  }, []);
+
   const corridors = initialMapData?.metro_corridors || [];
 
   const renderCommonElements = () => (
@@ -128,8 +140,6 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
       </div>
     );
   }
-
-  const [roadZoom, setRoadZoom] = useState(14);
 
   function DynamicRoads({ roads }) {
     const map = useMap();
@@ -240,6 +250,48 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
           </React.Fragment>
         );
       })}
+
+      {/* Render external traffic from TomTom */}
+      {externalTraffic?.flow && Array.isArray(externalTraffic.flow) ? (
+        externalTraffic.flow.map((roadFlow, roadIndex) => {
+          const flow = roadFlow?.flow;
+          const segment = flow?.flowSegmentData;
+          const coords = segment?.coordinates?.coordinate || [];
+          const speed = segment?.currentSpeed || 0;
+          const roadColors = ['#ff4444', '#ffaa00', '#44ff44', '#00e676', '#00b0ff'];
+          const dotColor = roadColors[roadIndex % roadColors.length];
+
+          return coords.map((coord, i) => (
+            <CircleMarker
+              key={`tomtom-road-${roadIndex}-${i}`}
+              center={[coord.latitude, coord.longitude]}
+              radius={2.5}
+              pathOptions={{ color: dotColor, fillColor: dotColor, fillOpacity: 0.95, weight: 0 }}
+            >
+              <LeafletTooltip>
+                {roadFlow.road_name}: Speed {speed} km/h | Flow: {segment?.frc || 'N/A'}
+              </LeafletTooltip>
+            </CircleMarker>
+          ));
+        })
+      ) : externalTraffic?.flow?.flowSegmentData?.coordinates?.coordinate ? (
+        externalTraffic.flow.flowSegmentData.coordinates.coordinate.map((coord, i) => {
+          const speed = externalTraffic.flow.flowSegmentData?.currentSpeed || 0;
+          const speedColor = speed < 10 ? '#ff4444' : speed < 20 ? '#ffaa00' : '#44ff44';
+          return (
+            <CircleMarker
+              key={`tomtom-${i}`}
+              center={[coord.latitude, coord.longitude]}
+              radius={2.5}
+              pathOptions={{ color: speedColor, fillColor: speedColor, fillOpacity: 0.95, weight: 0 }}
+            >
+              <LeafletTooltip>
+                Speed: {speed} km/h | Flow: {externalTraffic.flow.flowSegmentData?.frc || 'N/A'}
+              </LeafletTooltip>
+            </CircleMarker>
+          );
+        })
+      ) : null}
 
       <Polygon
         positions={BENGALURU_BOUNDARY_COORDS}

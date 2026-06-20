@@ -9,11 +9,15 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
   const injectChaos = async () => {
     setLoading(true);
     try {
-      await axios.post('http://localhost:8000/api/traffic/inject-anomaly', {});
+      const response = await axios.post('http://localhost:8000/api/traffic/inject-anomaly', {});
+      if (response?.data) {
+        setAnomalies(prev => [response.data, ...prev]);
+      }
     } catch (e) {
       console.error(e);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const clearAnomaly = async (id) => {
