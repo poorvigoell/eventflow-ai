@@ -38,7 +38,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
     else if (anomaly.severity_level === 'HIGH') accentColor = '#22c55e'; // Med Green
     else if (anomaly.severity_level === 'MODERATE') accentColor = '#86efac'; // Light Green
     if (!isActive) accentColor = 'var(--color-text-muted)';
-    
+
     // Ensure text is readable on the background pill
     const textColor = anomaly.severity_level === 'MODERATE' ? '#064e3b' : '#ffffff';
 
@@ -46,7 +46,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
       <Card key={`${anomaly.id}-${anomaly.timestamp}`} className={`border-l-4 overflow-hidden relative ${isActive ? '' : 'opacity-70 bg-[var(--color-base)]'}`} style={{ borderLeftColor: accentColor }}>
         {isActive && (
           <div className="absolute top-0 right-0 p-4">
-            <button 
+            <button
               onClick={() => clearAnomaly(anomaly.id)}
               className="text-xs font-bold text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-3 py-1 rounded-full transition-colors"
             >
@@ -54,7 +54,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
             </button>
           </div>
         )}
-        
+
         <div className="flex items-start gap-4 pr-24">
           <div className="p-3 rounded-xl flex-shrink-0" style={{ backgroundColor: `${accentColor}20` }}>
             <MapPin size={24} style={{ color: accentColor }} />
@@ -78,7 +78,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
                 </span>
               )}
             </div>
-            
+
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-[var(--color-text-main)]">{anomaly.junction}</h3>
               {anomaly.severity_score && (
@@ -88,15 +88,17 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
                 </div>
               )}
             </div>
-            
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div className="bg-[var(--color-base)] p-3 rounded-lg border border-[var(--color-border)] flex flex-col justify-between">
-                <p className="text-xs text-[var(--color-text-muted)] mb-1">Current Speed</p>
-                <p className="font-bold text-[var(--color-text-main)] text-lg">{anomaly.current_speed_kmh} <span className="text-sm text-[var(--color-text-muted)]">/ 40 km/h</span></p>
-              </div>
-              <div className="bg-[var(--color-base)] p-3 rounded-lg border border-[var(--color-border)] flex flex-col justify-between">
-                <p className="text-xs text-[var(--color-text-muted)] mb-1">Jam Factor</p>
-                <p className="font-bold text-lg" style={{ color: accentColor }}>{anomaly.jam_factor} <span className="text-sm text-[var(--color-text-muted)]">/ 10</span></p>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+              <div className="lg:col-span-2 flex flex-col gap-3 justify-between">
+                <div className="bg-[var(--color-base)] px-4 py-3 rounded-lg border border-[var(--color-border)] flex items-center justify-between flex-1">
+                  <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">Current Speed</span>
+                  <span className="font-black text-[var(--color-text-main)] text-lg whitespace-nowrap">{anomaly.current_speed_kmh} <span className="text-xs font-normal text-[var(--color-text-muted)]">/ 40 km/h</span></span>
+                </div>
+                <div className="bg-[var(--color-base)] px-4 py-3 rounded-lg border border-[var(--color-border)] flex items-center justify-between flex-1">
+                  <span className="text-xs font-semibold text-[var(--color-text-muted)] uppercase tracking-wider whitespace-nowrap">Jam Factor</span>
+                  <span className="font-black text-lg whitespace-nowrap" style={{ color: accentColor }}>{anomaly.jam_factor} <span className="text-xs font-normal text-[var(--color-text-muted)]">/ 10</span></span>
+                </div>
               </div>
               <div className="bg-[var(--color-base)] p-3 rounded-lg border border-[var(--color-border)] flex flex-col justify-between">
                 <p className="text-xs text-[var(--color-text-muted)] mb-2">Emergency ETAs</p>
@@ -119,7 +121,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
                 <p className="text-xs text-[var(--color-text-muted)] mb-1">Contact Center</p>
                 <div>
                   <div className="flex items-start gap-2 font-bold text-sm text-[var(--color-text-main)]" title={anomaly.traffic_control_center || 'Local Police Station'}>
-                    <ShieldAlert size={16} className="shrink-0 mt-0.5" style={{ color: accentColor }} /> 
+                    <ShieldAlert size={16} className="shrink-0 mt-0.5" style={{ color: accentColor }} />
                     <span className="leading-tight">{anomaly.traffic_control_center || 'Local Police Station'}</span>
                   </div>
                   {anomaly.traffic_control_center_dist_km > 0 && (
@@ -169,7 +171,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
           </h1>
           <p className="text-[var(--color-text-muted)] mt-1">Real-time gridlock detection and tactical response.</p>
         </div>
-        <button 
+        <button
           onClick={injectChaos}
           disabled={loading}
           className="bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/20 text-[var(--color-accent)] border border-[var(--color-accent)]/30 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
@@ -181,7 +183,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-8">
-          
+
           {/* Active Anomalies Section */}
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-[var(--color-text-main)] flex items-center gap-2 border-b border-[var(--color-border)] pb-2">
@@ -216,7 +218,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
             <div className="flex items-center gap-3 mb-4">
               <h3 className="font-bold text-[var(--color-text-main)]">How It Works</h3>
             </div>
-            
+
             <div className="space-y-4 text-xs text-[var(--color-text-muted)] leading-relaxed">
               <div>
                 <p className="text-sm mb-2">
