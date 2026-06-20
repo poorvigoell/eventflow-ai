@@ -119,6 +119,8 @@ async def analyze_event(location_name: str, event_type: str, duration_hours: flo
         "signals": signals,
         # LLM UI state bindings
         "_locationName": coords["display_name"],
+        "_lat": coords["lat"],
+        "_lng": coords["lng"],
         "_duration": duration_hours,
         "_eventType": event_type
     }
@@ -200,7 +202,10 @@ async def process_chat_stream(message: str, history: list):
     messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
     for msg in history:
         if msg.get("role") != "system":
-            messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+            role = msg.get("role", "user")
+            if role == "model":
+                role = "assistant"
+            messages.append({"role": role, "content": msg.get("content", "")})
     
     messages.append({"role": "user", "content": message})
     

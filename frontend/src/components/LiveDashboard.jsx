@@ -122,10 +122,13 @@ export function LiveDashboard({
               setLng(dataPayload.result.lng);
               setLocationName(dataPayload.result.display_name || 'AI Selected Location');
               setShowPin(true);
+              setTargetBoundary(dataPayload.result.geojson || null);
               setAiLogs(prev => [...prev, { type: 'success', text: `📍 Geocoded location` }]);
             } else if (dataPayload.tool === 'analyze_event') {
               setAiLogs(prev => [...prev, { type: 'success', text: `🔮 Prediction completed` }]);
               if (dataPayload.result._locationName) setLocationName(dataPayload.result._locationName);
+              if (dataPayload.result._lat) setLat(dataPayload.result._lat);
+              if (dataPayload.result._lng) setLng(dataPayload.result._lng);
               if (dataPayload.result._duration) setDuration(dataPayload.result._duration);
               if (dataPayload.result._eventType) setEventType(dataPayload.result._eventType);
               setData(dataPayload.result);
@@ -147,7 +150,7 @@ export function LiveDashboard({
           } else if (eventTypeHeader === 'error') {
             setAiLogs(prev => [...prev, { type: 'error', text: dataPayload.text }]);
           } else if (eventTypeHeader === 'done') {
-            setChatHistory(prev => [...prev, { role: 'model', content: finalAiMessage }]);
+            setChatHistory(prev => [...prev, { role: 'assistant', content: finalAiMessage }]);
           }
         }
       }
