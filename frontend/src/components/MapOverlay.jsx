@@ -5,18 +5,15 @@ import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
 import { BENGALURU_BOUNDARY_COORDS } from '../utils/bengaluruBoundary';
 
-const createCustomIcon = (color) => {
-  return new L.Icon({
-    iconUrl: `https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-  });
-};
-
-const venueIcon = createCustomIcon('blue');
+const venueIcon = new L.divIcon({
+  className: 'custom-venue-icon',
+  html: `<svg viewBox="0 0 24 24" width="36" height="36" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.5));">
+           <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="var(--color-accent)"/>
+         </svg>`,
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+  popupAnchor: [0, -36]
+});
 
 function MapClickHandler({ setLocation, setLocationName, setTargetBoundary }) {
   useMapEvents({
@@ -74,7 +71,7 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
   useEffect(() => {
     const emit = () => {
       const items = [];
-      if (showPin) items.push({ id: 'pin', label: 'Selected Pin', type: 'marker', color: '#2196f3', visible: overlayVisibility['pin'] ?? true, positions: [[lat, lng]] });
+      if (showPin) items.push({ id: 'pin', label: 'Selected Pin', type: 'marker', color: 'var(--color-accent)', visible: overlayVisibility['pin'] ?? true, positions: [[lat, lng]] });
 
       // critical roads (high risk)
       if (criticalRoads && criticalRoads.length > 0) {

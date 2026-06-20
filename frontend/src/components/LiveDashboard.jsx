@@ -58,42 +58,40 @@ export function LiveDashboard({
   locationName, setLocationName,
   targetBoundary, setTargetBoundary,
   analyzeEvent,
+  setData,
   isFullscreen, setIsFullscreen,
   initialMapData
 }) {
-  const [autoTomtom, setAutoTomtom] = useState(false);
-  const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const [showBaseline, setShowBaseline] = useState(false);
   const [tomtomError, setTomtomError] = useState('');
 
+  // Fetch TomTom baseline when toggled
   useEffect(() => {
-    if (refreshCooldown <= 0) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setRefreshCooldown((current) => Math.max(current - 1, 0));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [refreshCooldown]);
-
-  // Auto-poll TomTom hourly when enabled
-  useEffect(() => {
-    let tid = null;
     const runFetch = async () => {
       try {
+        setTomtomError('');
         const res = await fetch(`http://localhost:8000/api/external/tomtom/flows?lat=${lat}&lng=${lng}&num_roads=5`);
         const payload = await res.json();
-        if (!payload.mock) window.dispatchEvent(new CustomEvent('externalTraffic', { detail: { flow: payload.data } }));
-      } catch (err) { console.error('Auto TomTom fetch error', err); }
+        if (!res.ok) {
+          setTomtomError(payload?.detail || payload?.message || 'TomTom fetch failed');
+          return;
+        }
+        if (!payload.mock) {
+          window.dispatchEvent(new CustomEvent('externalTraffic', { detail: { flow: payload.data } }));
+        } else {
+          setTomtomError(payload.message || 'TomTom fallback active');
+        }
+      } catch (err) { 
+        console.error('TomTom fetch error', err); 
+        setTomtomError('Unable to contact TomTom service.');
+      }
     };
-    if (autoTomtom) {
-      // run immediately then every hour
+    if (showBaseline) {
       runFetch();
-      tid = setInterval(runFetch, 60 * 60 * 1000);
+    } else {
+      window.dispatchEvent(new CustomEvent('externalTraffic', { detail: null }));
     }
-    return () => { if (tid) clearInterval(tid); };
-  }, [autoTomtom, lat, lng]);
+  }, [showBaseline, lat, lng]);
   useEffect(() => {
     // Force leaflet to recalculate container size on fullscreen toggle
     setTimeout(() => {
@@ -240,42 +238,21 @@ export function LiveDashboard({
           </h2>
           <div className="flex items-center gap-3 pointer-events-auto">
             <div className="flex flex-col gap-3 w-full">
-              <button
-                onClick={async () => {
-                  if (refreshCooldown > 0) {
-                    return;
-                  }
-                  setTomtomError('');
-                  setRefreshCooldown(60);
-                  try {
-                    const res = await fetch(`http://localhost:8000/api/external/tomtom/flows?lat=${lat}&lng=${lng}&num_roads=5`);
-                    const payload = await res.json();
-                    if (!res.ok) {
-                      const message = payload?.detail || payload?.message || 'TomTom refresh failed';
-                      setTomtomError(message);
-                      return;
-                    }
-                    if (!payload.mock) {
-                      window.dispatchEvent(new CustomEvent('externalTraffic', { detail: { flow: payload.data } }));
-                    } else {
-                      const message = payload.message || 'TomTom fallback active';
-                      setTomtomError(message);
-                    }
-                  } catch (err) {
-                    console.error(err);
-                    setTomtomError('Unable to contact TomTom service.');
-                  }
-                }}
-                disabled={refreshCooldown > 0}
-                className="w-full px-5 py-2 rounded-[24px] text-xs font-semibold uppercase tracking-[0.18em] text-white bg-[linear-gradient(135deg,#111827,rgba(59,130,246,0.95))] border border-white/10 shadow-[0_18px_40px_rgba(15,23,42,0.45)] transition duration-200 hover:scale-[1.01] hover:bg-[linear-gradient(135deg,#111827,rgba(59,130,246,0.8))] disabled:opacity-60 disabled:cursor-not-allowed"
-              >{refreshCooldown > 0 ? `Show Live Traffic (${refreshCooldown}s)` : 'Show Live Traffic'}</button>
-              <div className="flex items-center justify-between gap-2 rounded-xl bg-[var(--color-surface)]/90 border border-[var(--color-border)] p-3 text-xs text-[var(--color-text-muted)]">
-                <label className="flex items-center gap-2">
-                  <input id="autoTomtom" type="checkbox" checked={autoTomtom} onChange={(e) => setAutoTomtom(e.target.checked)} className="w-4 h-4 accent-[var(--color-accent)]" />
-                  Auto traffic refresh
-                </label>
-                <span className="text-[11px] uppercase tracking-[0.24em] text-[var(--color-text-main)]">Hourly update</span>
-              </div>
+              <label className="flex items-center justify-between gap-3 bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-4 py-3 rounded-xl cursor-pointer transition-colors shadow-2xl backdrop-blur-md group">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-[var(--color-text-main)] uppercase tracking-widest mb-1">Current Traffic Baseline</span>
+                  <span className="text-[10px] text-[var(--color-text-muted)] group-hover:text-[var(--color-text-main)] transition-colors">Toggle real-time traffic overlay</span>
+                </div>
+                <div className="relative inline-flex items-center">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={showBaseline}
+                    onChange={(e) => setShowBaseline(e.target.checked)}
+                  />
+                  <div className="w-9 h-5 bg-[var(--color-base)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--color-accent)] border border-[var(--color-border)] shadow-inner"></div>
+                </div>
+              </label>
             </div>
 
             <button
@@ -287,7 +264,7 @@ export function LiveDashboard({
           </div>
         </div>
         {tomtomError && (
-          <div className="absolute left-4 top-[72px] z-[70] w-[calc(100%-2rem)] rounded-xl border border-amber-500 bg-amber-500/10 text-amber-700 px-4 py-3 text-xs font-medium">
+          <div className="absolute left-1/2 -translate-x-1/2 top-6 z-[9999] w-auto max-w-md rounded-full border border-amber-500/50 bg-[var(--color-surface)]/95 backdrop-blur-md text-amber-500 px-5 py-2 text-xs font-bold shadow-2xl text-center">
             {tomtomError}
           </div>
         )}
@@ -297,7 +274,7 @@ export function LiveDashboard({
             lat={lat}
             lng={lng}
             showPin={showPin}
-            setLocation={(loc) => { setLat(loc.lat); setLng(loc.lng); setShowPin(true); }}
+            setLocation={(loc) => { setLat(loc.lat); setLng(loc.lng); setShowPin(true); if (setData) setData(null); }}
             locationName={locationName}
             setLocationName={(name) => { setLocationName(name); setShowPin(true); }}
             predictionData={data ? data.prediction : null}

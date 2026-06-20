@@ -243,6 +243,7 @@ function App() {
                 locationName={locationName} setLocationName={setLocationName}
                 targetBoundary={targetBoundary} setTargetBoundary={setTargetBoundary}
                 analyzeEvent={analyzeEvent}
+                setData={setData}
                 isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen}
                 initialMapData={initialMapData}
               />
