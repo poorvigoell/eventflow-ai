@@ -50,7 +50,11 @@ def get_signal_recommendations(high_risk_junctions: list[dict], total_incidents:
     - Run Webster's formula
     - Generate human-readable recommendation
     """
-    if not high_risk_junctions or total_incidents < 3:
+    # If incidents are too few, do not generate recommendations
+    if total_incidents < 3:
+        return []
+
+    if not high_risk_junctions:
         high_risk_junctions = [
             {"name": "Primary Access Road Junction", "risk_score": 0.85},
             {"name": "Secondary Perimeter Cross", "risk_score": 0.65}

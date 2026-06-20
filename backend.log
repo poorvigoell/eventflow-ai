@@ -1,0 +1,57 @@
+INFO:     Started server process [5344]
+INFO:     Waiting for application startup.
+Using XGBoost model.
+Loading graph into memory...
+Graph loaded successfully!
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56785 - "HEAD / HTTP/1.1" 404 Not Found
+WARNING:  Unsupported upgrade request.
+WARNING:  No supported WebSocket library detected. Please use "pip install 'uvicorn[standard]'", or install 'websockets' or 'wsproto' manually.
+Auto-injected anomaly at Tumkur Road.
+INFO:     127.0.0.1:56891 - "GET /ws/alerts HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56893 - "GET /api/traffic/anomalies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56895 - "GET /api/initial-map-data HTTP/1.1" 200 OK
+WARNING:  Unsupported upgrade request.
+WARNING:  No supported WebSocket library detected. Please use "pip install 'uvicorn[standard]'", or install 'websockets' or 'wsproto' manually.
+INFO:     127.0.0.1:56897 - "GET /ws/alerts HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56893 - "GET /api/traffic/anomalies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56899 - "GET /api/initial-map-data HTTP/1.1" 200 OK
+WARNING:  Unsupported upgrade request.
+WARNING:  No supported WebSocket library detected. Please use "pip install 'uvicorn[standard]'", or install 'websockets' or 'wsproto' manually.
+INFO:     127.0.0.1:56929 - "GET /ws/alerts HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56932 - "GET /api/traffic/anomalies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56934 - "GET /api/initial-map-data HTTP/1.1" 200 OK
+WARNING:  Unsupported upgrade request.
+WARNING:  No supported WebSocket library detected. Please use "pip install 'uvicorn[standard]'", or install 'websockets' or 'wsproto' manually.
+INFO:     127.0.0.1:56936 - "GET /ws/alerts HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56932 - "GET /api/traffic/anomalies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56937 - "GET /api/initial-map-data HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56948 - "OPTIONS /api/predict HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56948 - "POST /api/predict HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56948 - "GET /api/external/tomtom/flows?lat=13.00234155853198&lng=77.60497570037843&num_roads=5 HTTP/1.1" 200 OK
+Auto-injected anomaly at JC Road.
+INFO:     127.0.0.1:56957 - "OPTIONS /api/dispersal HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56959 - "OPTIONS /api/dispersal HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56959 - "POST /api/dispersal HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56957 - "POST /api/dispersal HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56966 - "GET /api/rl/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56966 - "GET /api/rl/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56990 - "POST /api/dispersal HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56995 - "POST /api/predict HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56990 - "GET /api/rl/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57003 - "GET /api/rl/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57001 - "POST /api/dispersal HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56995 - "POST /api/dispersal HTTP/1.1" 200 OK
+WARNING:  Unsupported upgrade request.
+WARNING:  No supported WebSocket library detected. Please use "pip install 'uvicorn[standard]'", or install 'websockets' or 'wsproto' manually.
+INFO:     127.0.0.1:57014 - "GET /ws/alerts HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57016 - "GET /api/traffic/anomalies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57018 - "GET /api/initial-map-data HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57022 - "GET /api/traffic/anomalies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57023 - "GET /api/initial-map-data HTTP/1.1" 200 OK
+WARNING:  Unsupported upgrade request.
+WARNING:  No supported WebSocket library detected. Please use "pip install 'uvicorn[standard]'", or install 'websockets' or 'wsproto' manually.
+INFO:     127.0.0.1:57024 - "GET /ws/alerts HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57026 - "POST /api/predict HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57026 - "GET /api/external/tomtom/flows?lat=13.006962076561793&lng=77.61787176132204&num_roads=5 HTTP/1.1" 200 OK

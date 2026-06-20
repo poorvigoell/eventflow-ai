@@ -1,6 +1,7 @@
 import { Navigation, Maximize2, Minimize2, Map as MapIcon, Loader2, AlertTriangle, TrendingUp, Activity, Search, Info } from 'lucide-react';
 import { TimelineChart } from './TimelineChart';
 import MapOverlay from './MapOverlay';
+import Legend from './Legend';
 import { useState, useEffect } from 'react';
 
 const CustomSelect = ({ value, onChange, options }) => {
@@ -30,6 +31,19 @@ const CustomSelect = ({ value, onChange, options }) => {
     </div>
   )
 }
+
+const InfoTooltip = ({ text, alignRight = false }) => (
+  <div className={`absolute ${alignRight ? 'right-4' : 'left-4'} top-4 z-50`}>
+    <div className="group inline-flex">
+      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[rgba(16,185,129,0.15)] border border-[rgba(16,185,129,0.35)] shadow-[0_0_0_8px_rgba(16,185,129,0.08)] ring-1 ring-[rgba(16,185,129,0.18)] transition duration-200 hover:scale-110">
+        <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+      </div>
+      <div className={`absolute ${alignRight ? 'right-0' : 'left-0'} top-full mt-2 w-60 p-3.5 bg-[rgba(15,23,42,0.96)] border border-[rgba(255,255,255,0.08)] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.35)] text-[13px] leading-5 text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200`}> 
+        {text}
+      </div>
+    </div>
+  </div>
+)
 
 export function LiveDashboard({
   data, loading,
@@ -225,7 +239,7 @@ export function LiveDashboard({
             <MapIcon className="text-[var(--color-accent)]" size={16} /> Live Dispatch Map
           </h2>
           <div className="flex items-center gap-3 pointer-events-auto">
-            <div className="flex items-center gap-2 bg-[var(--color-surface)] rounded-lg p-2 border border-[var(--color-border)]">
+            <div className="flex flex-col gap-3 w-full">
               <button
                 onClick={async () => {
                   if (refreshCooldown > 0) {
@@ -253,12 +267,15 @@ export function LiveDashboard({
                   }
                 }}
                 disabled={refreshCooldown > 0}
-                className="px-3 py-1 rounded-md text-xs font-bold bg-[var(--color-accent)] text-black disabled:opacity-50 disabled:cursor-not-allowed"
-              >{refreshCooldown > 0 ? `Refresh Traffic (${refreshCooldown}s)` : 'Refresh Traffic'}</button>
-              <label className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
-                <input id="autoTomtom" type="checkbox" checked={autoTomtom} onChange={(e) => setAutoTomtom(e.target.checked)} className="w-4 h-4" />
-                Auto (hourly)
-              </label>
+                className="w-full px-5 py-2 rounded-[24px] text-xs font-semibold uppercase tracking-[0.18em] text-white bg-[linear-gradient(135deg,#111827,rgba(59,130,246,0.95))] border border-white/10 shadow-[0_18px_40px_rgba(15,23,42,0.45)] transition duration-200 hover:scale-[1.01] hover:bg-[linear-gradient(135deg,#111827,rgba(59,130,246,0.8))] disabled:opacity-60 disabled:cursor-not-allowed"
+              >{refreshCooldown > 0 ? `Show Live Traffic (${refreshCooldown}s)` : 'Show Live Traffic'}</button>
+              <div className="flex items-center justify-between gap-2 rounded-xl bg-[var(--color-surface)]/90 border border-[var(--color-border)] p-3 text-xs text-[var(--color-text-muted)]">
+                <label className="flex items-center gap-2">
+                  <input id="autoTomtom" type="checkbox" checked={autoTomtom} onChange={(e) => setAutoTomtom(e.target.checked)} className="w-4 h-4 accent-[var(--color-accent)]" />
+                  Auto traffic refresh
+                </label>
+                <span className="text-[11px] uppercase tracking-[0.24em] text-[var(--color-text-main)]">Hourly update</span>
+              </div>
             </div>
 
             <button
@@ -291,6 +308,9 @@ export function LiveDashboard({
             setTargetBoundary={setTargetBoundary}
           />
         </div>
+        <div className="mt-3 px-2">
+          <Legend />
+        </div>
       </div>
 
       {/* 3. Bottom Section: Live Analytics */}
@@ -306,52 +326,33 @@ export function LiveDashboard({
             <div className="flex flex-col gap-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Timeline Chart */}
-              <div className="lg:col-span-1 h-[250px] bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] p-5 rounded-xl shadow-2xl flex flex-col min-w-0 relative overflow-hidden">
-                <TimelineChart timelineData={data.timeline} />
+              <div className="lg:col-span-1 h-[250px] bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] p-5 rounded-xl shadow-2xl flex flex-col min-w-0 relative overflow-hidden group">
+                  <InfoTooltip alignRight text="Timeline is generated as inflow, steady, and exodus phases using predicted incidents, event time, and duration." />
+                  <TimelineChart timelineData={data.timeline} />
               </div>
 
               {/* Metrics Grid */}
               <div className="lg:col-span-1 grid grid-cols-2 gap-4 min-w-0">
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-accent)] rounded-xl p-5 flex flex-col justify-center items-center relative overflow-hidden group shadow-2xl">
-                  <div className="absolute top-4 left-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] cursor-help z-50">
-                    <Info size={12} />
-                    <div className="hidden group-hover:block absolute top-full left-0 mt-1 w-48 p-2 bg-[var(--color-surface-hover)] border border-[var(--color-border)] rounded shadow-xl text-[10px] text-left text-[var(--color-text-main)] z-50 normal-case tracking-normal font-medium">
-                      Calculated using a RandomForest ML Model trained on historical city traffic data, predicting the excess traffic volume based on event type, weather, and time of day.
-                    </div>
-                  </div>
+                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-accent)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
+                  <InfoTooltip text="Calculated using a RandomForest ML Model trained on historical city traffic data, predicting the excess traffic volume based on event type, weather, and time of day." />
                   <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 z-10">Surge</span>
                   <span className="text-4xl font-bold text-[var(--color-accent)] z-10">+{data.prediction.total_incidents}</span>
                 </div>
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-accent)] rounded-xl p-5 flex flex-col justify-center items-center relative overflow-hidden group shadow-2xl">
-                  <div className="absolute top-4 left-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] cursor-help z-50">
-                    <Info size={12} />
-                    <div className="hidden group-hover:block absolute top-full left-0 mt-1 w-48 p-2 bg-[var(--color-surface-hover)] border border-[var(--color-border)] rounded shadow-xl text-[10px] text-left text-[var(--color-text-main)] z-50 normal-case tracking-normal font-medium">
-                      Derived from the ML model's confidence rating combined with a cascading failure graph analysis of surrounding road network bottlenecks.
-                    </div>
-                  </div>
+                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-accent)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
+                  <InfoTooltip text="Derived from the ML model's confidence rating combined with a cascading failure graph analysis of surrounding road network bottlenecks." />
                   <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 z-10">Risk Score</span>
                   <span className="text-4xl font-bold text-[var(--color-accent)] z-10">{Math.round(data.prediction.confidence * 100)}</span>
                 </div>
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-text-main)] rounded-xl p-5 flex flex-col justify-center items-center relative overflow-hidden group shadow-2xl">
-                  <div className="absolute top-4 left-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] cursor-help z-50">
-                    <Info size={12} />
-                    <div className="hidden group-hover:block absolute top-full left-0 mt-1 w-48 p-2 bg-[var(--color-surface-hover)] border border-[var(--color-border)] rounded shadow-xl text-[10px] text-left text-[var(--color-text-main)] z-50 normal-case tracking-normal font-medium">
-                      Calculated dynamically using a queuing theory allocation algorithm factoring in predicted incidents and available city resources.
-                    </div>
-                  </div>
+                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-text-main)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
+                  <InfoTooltip text="Calculated dynamically using a queuing theory allocation algorithm factoring in predicted incidents and available city resources." />
                   <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 z-10">Dispatch Units</span>
                   <span className="text-4xl font-bold text-[var(--color-text-main)] z-10">{data.dispatch.total_units}</span>
                 </div>
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-text-main)] rounded-xl p-5 flex flex-col justify-center items-center relative overflow-hidden group shadow-2xl">
-                  <div className="absolute top-4 right-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] cursor-help z-50">
-                    <Info size={12} />
-                    <div className="hidden group-hover:block absolute top-full right-0 mt-1 w-48 p-2 bg-[var(--color-surface-hover)] border border-[var(--color-border)] rounded shadow-xl text-[10px] text-left text-[var(--color-text-main)] z-50 normal-case tracking-normal font-medium">
-                      Economic impact modeling of lost person-hours due to gridlock, converted to local currency including congestion surcharges.
-                    </div>
-                  </div>
+                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-text-main)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
+                  <InfoTooltip text="Economic impact modeling of lost person-hours due to gridlock, converted to local currency including congestion surcharges." alignRight />
                   <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 z-10">Est. Cost</span>
                   <span className="text-4xl font-bold text-[var(--color-text-main)] z-10">₹{data.economic_impact.cost_lakhs}L</span>
@@ -360,7 +361,8 @@ export function LiveDashboard({
 
               {/* Alerts & Econ */}
               <div className="lg:col-span-1 flex flex-col gap-4 min-w-[280px]">
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center relative shadow-2xl">
+                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center relative shadow-2xl group">
+                  <InfoTooltip text="Alert level is selected based on incident count and model risk score thresholds." alignRight />
                   <div className="absolute right-0 top-0 w-24 h-24 bg-[var(--color-text-muted)]/10 blur-xl rounded-full translate-x-1/2 -translate-y-1/2" />
                   <h2 className={`text-[11px] font-bold mb-2 flex items-center gap-2 uppercase tracking-widest ${
                     data.dispatch.alert_level === 'RED' ? 'text-red-500' : 
@@ -372,7 +374,8 @@ export function LiveDashboard({
                   <p className="text-sm text-[var(--color-text-muted)] leading-relaxed font-medium">{data.dispatch.justification}</p>
                 </div>
 
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-start relative shadow-2xl">
+                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-start relative shadow-2xl group">
+                  <InfoTooltip text="Suggested emergency services are chosen from nearby high-risk junctions and predicted incident demand." alignRight />
                   <div className="absolute right-0 top-0 w-24 h-24 bg-[var(--color-accent)]/10 blur-xl rounded-full translate-x-1/2 -translate-y-1/2" />
                   <h2 className="text-[11px] font-bold mb-3 flex items-center gap-2 text-[var(--color-accent)] uppercase tracking-widest">
                     <AlertTriangle size={16} /> Emergency Services
@@ -393,19 +396,22 @@ export function LiveDashboard({
 
               {/* Full Width Economic Impact Summary */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center items-center shadow-2xl relative overflow-hidden">
+                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center items-center shadow-2xl relative overflow-hidden group">
+                  <InfoTooltip text="Estimated from predicted incident volume and average delay per vehicle during congestion." />
                   <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 relative z-10">Person-Hours Lost</span>
                   <span className="font-bold text-[var(--color-accent)] text-3xl relative z-10 mb-2">{data.economic_impact.person_hours} hrs</span>
                   <span className="text-xs text-[var(--color-text-muted)] text-center leading-relaxed max-w-[90%]">Total civic productivity delay estimated based on localized gridlock volume.</span>
                 </div>
                 
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center items-center shadow-2xl relative overflow-hidden">
+                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center items-center shadow-2xl relative overflow-hidden group">
+                  <InfoTooltip text="Derived from predicted incident counts and assumed average people per vehicle in the impacted network." />
                   <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 relative z-10">Affected Commuters</span>
                   <span className="font-bold text-[var(--color-accent)] text-3xl relative z-10 mb-2">{data.economic_impact.affected_commuters?.toLocaleString()}</span>
                   <span className="text-xs text-[var(--color-text-muted)] text-center leading-relaxed max-w-[90%]">Projected number of individuals directly impacted across the network.</span>
                 </div>
                 
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center items-center shadow-2xl relative overflow-hidden">
+                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center items-center shadow-2xl relative overflow-hidden group">
+                  <InfoTooltip text="Estimated from predicted congestion volume applying a fixed per-incident fuel burn rate." />
                   <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 relative z-10">Fuel Wasted</span>
                   <span className="font-bold text-[var(--color-accent)] text-3xl relative z-10 mb-2">{data.economic_impact.fuel_liters_wasted?.toLocaleString()} L</span>
                   <span className="text-xs text-[var(--color-text-muted)] text-center leading-relaxed max-w-[90%]">Estimated excess fuel burn caused by heavy idling in congestion zones.</span>

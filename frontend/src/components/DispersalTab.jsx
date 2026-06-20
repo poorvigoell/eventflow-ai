@@ -210,11 +210,11 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
               <div className="absolute top-2 right-2 group z-50">
                 <button
                   type="button"
-                  className="rounded-full bg-gradient-to-br from-[#22c55e] to-[#10b981] p-2 text-white shadow-lg shadow-black/25 ring-2 ring-black/20 transition hover:from-[#4ade80] hover:to-[#22c55e]"
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-[rgba(16,185,129,0.15)] border border-[rgba(16,185,129,0.35)] shadow-[0_0_0_8px_rgba(16,185,129,0.08)] ring-1 ring-[rgba(16,185,129,0.18)] p-2 text-[var(--color-accent)] transition duration-200 hover:scale-110"
                 >
                   <Info size={16} />
                 </button>
-                <div className="pointer-events-none absolute right-0 top-12 z-50 hidden w-80 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text-main)] shadow-xl group-hover:block">
+                <div className="pointer-events-none absolute right-0 top-0 -translate-y-full z-50 hidden w-80 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-text-main)] shadow-xl group-hover:block">
                   <strong className="block mb-2 text-[var(--color-text-main)]">Economic Segment Calculation</strong>
                   <p className="leading-6 text-[var(--color-text-muted)]">
                     This score combines the predicted crowd dispersal model with local economic sensitivity. It weighs the expected proportion of premium, middle and mass segments against the likely revenue impact from nearby venues, transportation mode shifts, and disruption penalties.

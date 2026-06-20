@@ -233,20 +233,21 @@ def get_initial_map_data(lat: float = 12.9788, lng: float = 77.5996):
 def get_nearest_road_flow_points(G, lat: float, lng: float, num_roads: int = 5, search_radius: float = 1200):
     if G is None:
         return []
-    try:
-        center_node = ox.distance.nearest_nodes(G, X=lng, Y=lat)
-    except Exception:
-        center_node = min(G.nodes(), key=lambda n: (G.nodes[n].get('x', 0) - lng)**2 + (G.nodes[n].get('y', 0) - lat)**2)
 
-    subgraph = nx.ego_graph(G, center_node, radius=search_radius, distance='length')
     point = Point(lng, lat)
+    degree_threshold = search_radius / 111000.0
     candidates = []
-    for u, v, k, data in subgraph.edges(keys=True, data=True):
+
+    for u, v, k, data in G.edges(keys=True, data=True):
         geom = data.get('geometry')
         if geom is None:
-            u_data = subgraph.nodes[u]
-            v_data = subgraph.nodes[v]
+            u_data = G.nodes[u]
+            v_data = G.nodes[v]
             geom = LineString([(u_data['x'], u_data['y']), (v_data['x'], v_data['y'])])
+
+        if point.distance(geom) > degree_threshold:
+            continue
+
         dist = point.distance(geom)
         road_name = data.get('name') or data.get('highway') or 'Unnamed Road'
         if isinstance(road_name, list):
@@ -273,10 +274,11 @@ def get_nearest_road_flow_points(G, lat: float, lng: float, num_roads: int = 5, 
         selected.append(item)
 
     if len(selected) < num_roads:
+        existing_edges = {s['edge'] for s in selected}
         for item in candidates:
             if len(selected) >= num_roads:
                 break
-            if item['edge'] not in {s['edge'] for s in selected}:
+            if item['edge'] not in existing_edges:
                 selected.append(item)
 
     return selected

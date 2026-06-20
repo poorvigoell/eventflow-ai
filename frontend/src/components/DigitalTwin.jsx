@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card, MetricBox } from './ui/components';
-import { Cpu } from 'lucide-react';
+import { Cpu, Info } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, Polygon } from 'react-leaflet';
 import L from 'leaflet';
 
@@ -40,6 +40,19 @@ const predIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
+const InfoTooltip = ({ text }) => (
+  <div className="absolute right-4 top-4 z-50">
+    <div className="group inline-flex">
+      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[rgba(16,185,129,0.15)] border border-[rgba(16,185,129,0.35)] shadow-[0_0_0_8px_rgba(16,185,129,0.08)] ring-1 ring-[rgba(16,185,129,0.18)] transition duration-200 hover:scale-110">
+        <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+      </div>
+      <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-[rgba(15,23,42,0.96)] border border-[rgba(255,255,255,0.08)] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.35)] text-[13px] leading-5 text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+        {text}
+      </div>
+    </div>
+  </div>
+);
+
 export const DigitalTwin = ({ lat, lng, predictionData }) => {
   
   if (!predictionData) return null;
@@ -68,14 +81,18 @@ export const DigitalTwin = ({ lat, lng, predictionData }) => {
         </div>
       </div>
 
-      <div className="text-center mb-2">
-        <span className="text-[var(--color-text-muted)] font-bold">Historical Twin Match Accuracy: </span>
-        <span className="text-[var(--color-accent)] font-bold text-2xl">{(accuracy * 100).toFixed(1)}%</span>
+      <div className="relative text-center mb-2">
+        <div className="inline-flex items-center justify-center gap-2">
+          <span className="text-[var(--color-text-muted)] font-bold">Historical Twin Match Accuracy: </span>
+          <InfoTooltip text="This score shows how closely the current event prediction matches a historical archived event. It is calculated from the difference between predicted and reconstructed incident volumes and the consistency of the matched congestion footprint." />
+        </div>
+        <span className="text-[var(--color-accent)] font-bold text-2xl block mt-1">{(accuracy * 100).toFixed(1)}%</span>
       </div>
 
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[500px]">
         {/* Predicted Map */}
-        <Card className="flex flex-col h-full bg-[var(--color-surface)]">
+        <Card className="relative flex flex-col h-full bg-[var(--color-surface)]">
+          <InfoTooltip text="Predicted map shows the XGBoost-based model forecast for the current event. The dashed polygon is the predicted congestion footprint, and the blue marker shows the event epicenter derived from the selected location, event type, time, and duration." />
           <h4 className="text-center text-[var(--color-text-main)] font-bold mb-1">ML Predicted</h4>
           <div className="text-center text-[var(--color-accent)] text-sm font-bold border-b-2 border-[var(--color-accent)] pb-2 mb-4">
             Target: Today
@@ -96,7 +113,8 @@ export const DigitalTwin = ({ lat, lng, predictionData }) => {
         </Card>
 
         {/* Actual Map */}
-        <Card className="flex flex-col h-full bg-[var(--color-surface)]">
+        <Card className="relative flex flex-col h-full bg-[var(--color-surface)]">
+          <InfoTooltip text="Actual map shows a matched historical event from the archive. The solid polygon is the reconstructed ground truth congestion zone, while the red marker marks the matched event’s central location from prior incident records and similarity scoring." />
           <h4 className="text-center text-[var(--color-text-main)] font-bold mb-1">Actual Ground Truth</h4>
           <div className="text-center text-[var(--color-text-muted)] text-sm font-bold border-b-2 border-[var(--color-border)] pb-2 mb-4">
             Matched: 1 Year Ago

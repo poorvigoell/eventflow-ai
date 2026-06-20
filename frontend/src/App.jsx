@@ -1,14 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
-import MapOverlay from './components/MapOverlay'
-import { TimelineChart } from './components/TimelineChart'
 import { SignalsTab } from './components/SignalsTab'
 import { DispersalTab } from './components/DispersalTab'
 import { DigitalTwin } from './components/DigitalTwin'
 import { AlertsTab } from './components/AlertsTab'
 import { LandingPage } from './components/LandingPage'
-import { Card, MetricBox, TabButton } from './components/ui/components'
-import { Activity, ShieldAlert, Navigation, Maximize2, Minimize2, Map as MapIcon, ListChecks, Radio, Route, Cpu, TrendingUp, AlertTriangle, ChevronDown, Loader2, Bell } from 'lucide-react'
+import { TabButton } from './components/ui/components'
+import { Activity, ListChecks, Radio, Route, Cpu, AlertTriangle, Bell } from 'lucide-react'
 
 import { LiveDashboard } from './components/LiveDashboard'
 import { TacticalPlan } from './components/TacticalPlan'
@@ -28,7 +26,8 @@ const CACHE_KEY = 'eventflow_app_state';
 const CACHE_EXPIRY_MS = 30 * 60 * 1000;
 
 function App() {
-  const loadCachedState = () => {
+  // Load cached state using useState initializer to avoid purity violation
+  const [cachedState] = useState(() => {
     try {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
@@ -37,11 +36,11 @@ function App() {
           return parsed.state;
         }
       }
-    } catch (e) {}
+    } catch {
+      // Ignore cache parsing errors
+    }
     return null;
-  };
-
-  const cachedState = loadCachedState();
+  });
 
   const initialHash = window.location.hash.replace('#', '')
   const validTabs = ['live', 'tactical', 'signals', 'dispersal', 'twin', 'alerts']
@@ -113,35 +112,17 @@ function App() {
 
   useEffect(() => {
     activeTabRef.current = activeTab;
-    if (activeTab === 'alerts') {
-      setHasUnreadAnomalies(false);
-    }
-    if (!visitedTabs.includes(activeTab)) {
-      setVisitedTabs(prev => [...prev, activeTab]);
-    }
   }, [activeTab]);
-
-  // Save to cache whenever relevant state changes
-  useEffect(() => {
-    const stateToCache = {
-      lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary, data
-    };
-    localStorage.setItem(CACHE_KEY, JSON.stringify({
-      timestamp: Date.now(),
-      state: stateToCache
-    }));
-  }, [lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary, data]);
-
-  // Fetch initial POIs on mount
-  useEffect(() => {
-    axios.get('http://localhost:8000/api/initial-map-data')
-      .then(res => setInitialMapData(res.data))
-      .catch(err => console.error(err))
-  }, [])
 
   const handleTabChange = (tab) => {
     setActiveTab(tab)
     window.location.hash = tab
+    if (tab === 'alerts') {
+      setHasUnreadAnomalies(false);
+    }
+    if (!visitedTabs.includes(tab)) {
+      setVisitedTabs(prev => [...prev, tab]);
+    }
   }
 
   const analyzeEvent = async () => {
@@ -169,6 +150,24 @@ function App() {
     }
     setLoading(false)
   }
+
+  // Save to cache whenever relevant state changes
+  useEffect(() => {
+    const stateToCache = {
+      lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary, data
+    };
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      state: stateToCache
+    }));
+  }, [lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary, data]);
+
+  // Fetch initial POIs on mount
+  useEffect(() => {
+    axios.get('http://localhost:8000/api/initial-map-data')
+      .then(res => setInitialMapData(res.data))
+      .catch(err => console.error(err))
+  }, [])
 
   const scrollContainerRef = useRef(null);
 
