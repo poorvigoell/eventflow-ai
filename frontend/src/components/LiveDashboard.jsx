@@ -38,7 +38,7 @@ const InfoTooltip = ({ text, alignRight = false }) => (
       <div className="flex items-center justify-center transition duration-200 hover:scale-110">
         <Info size={16} className="text-[var(--color-accent)] cursor-help" />
       </div>
-      <div className={`absolute ${alignRight ? 'right-0' : 'left-0'} top-full mt-2 w-60 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200`}> 
+      <div className={`absolute ${alignRight ? 'right-0' : 'left-0'} top-full mt-2 w-60 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200`}>
         {text}
       </div>
     </div>
@@ -75,46 +75,45 @@ export function LiveDashboard({
   const handleAiSubmit = async () => {
     if (!aiCommand.trim() || isAiProcessing) return;
     setIsAiProcessing(true);
-    setAiLogs([{ type: 'thinking', text: 'Processing request...' }]);
-    
+    setAiLogs([]);
+
     const currentMessage = aiCommand;
     setChatHistory(prev => [...prev, { role: 'user', content: currentMessage }]);
-    setAiCommand('');
-    
+
     try {
       const response = await fetch('http://localhost:8000/api/operator/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: currentMessage, history: chatHistory })
       });
-      
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
-      
+
       let finalAiMessage = "";
       let buffer = "";
-      
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         buffer += decoder.decode(value, { stream: true });
-        
+
         while (buffer.includes('\n\n')) {
           const splitIndex = buffer.indexOf('\n\n');
           const eventStr = buffer.slice(0, splitIndex).trim();
           buffer = buffer.slice(splitIndex + 2);
-          
+
           if (!eventStr || !eventStr.startsWith('event:')) continue;
-          
+
           const eventLines = eventStr.split('\n');
           const eventTypeHeader = eventLines[0].replace('event:', '').trim();
           const dataLine = eventLines.find(l => l.startsWith('data:'));
-          
+
           if (!dataLine) continue;
-          
+
           const dataPayload = JSON.parse(dataLine.replace('data:', '').trim());
-          
+
           if (eventTypeHeader === 'tool_call') {
             setAiLogs(prev => [...prev, { type: 'tool', text: `Running tool: ${dataPayload.tool}...` }]);
           } else if (eventTypeHeader === 'tool_result') {
@@ -243,102 +242,102 @@ export function LiveDashboard({
             <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Tracking Setup</h2>
           </div>
           <div className="flex bg-[var(--color-base)] p-1 rounded-lg">
-            <button 
+            <button
               onClick={() => setMode('manual')}
               className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${mode === 'manual' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-main)] shadow' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]'}`}
             >
               Manual Mode
             </button>
-            <button 
+            <button
               onClick={() => setMode('ai')}
               className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors flex items-center gap-1.5 ${mode === 'ai' ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] shadow border border-[var(--color-accent)]/30' : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)]'}`}
             >
-              <Bot size={14} /> AI Mode
+              <Bot size={14} /> Smart Predict
             </button>
           </div>
         </div>
 
         {mode === 'manual' ? (
           <div className="grid grid-cols-1 xl:grid-cols-7 gap-4 items-center">
-          <div className="flex flex-col h-full justify-center">
-            <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Event Category</label>
-            <CustomSelect value={eventType} onChange={setEventType} options={eventOptions} />
-          </div>
-
-          <div className="flex flex-col h-full justify-center">
-            <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Start Time</label>
-            <input
-              type="datetime-local"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              style={{ colorScheme: 'dark' }}
-              className="w-full bg-[var(--color-base)] border border-[var(--color-border)] rounded-lg p-2.5 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
-            />
-          </div>
-
-          <div className="flex flex-col h-full justify-center">
-            <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide flex justify-between">
-              <span>Duration</span>
-              <span className="text-[var(--color-accent)]">{duration} Hours</span>
-            </label>
-            <input
-              type="range"
-              min="1" max="12" step="0.5"
-              value={duration}
-              onChange={(e) => setDuration(parseFloat(e.target.value))}
-              style={{ accentColor: 'var(--color-accent)' }}
-              className="w-full h-2 bg-[var(--color-base)] rounded-lg appearance-none cursor-pointer"
-            />
-          </div>
-
-          <div className="flex flex-col h-full justify-center">
-            <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-2 uppercase tracking-wide">Modifiers</label>
-            <div className="flex flex-col gap-2">
-              <label className="flex items-center gap-2.5 cursor-pointer group">
-                <input type="checkbox" checked={rain} onChange={e => setRain(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
-                <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Rain</span>
-              </label>
-              <label className="flex items-center gap-2.5 cursor-pointer group">
-                <input type="checkbox" checked={emergency} onChange={e => setEmergency(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
-                <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Emergency</span>
-              </label>
-              <label className="flex items-center gap-2.5 cursor-pointer group">
-                <input type="checkbox" checked={multiEvent} onChange={e => setMultiEvent(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
-                <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Multi-Event</span>
-              </label>
+            <div className="flex flex-col h-full justify-center">
+              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Event Category</label>
+              <CustomSelect value={eventType} onChange={setEventType} options={eventOptions} />
             </div>
-          </div>
 
-          <div className="flex flex-col h-full justify-center min-w-0 xl:col-span-2">
-            <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Location (Search or Click Map)</label>
-            <div className="relative">
+            <div className="flex flex-col h-full justify-center">
+              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Start Time</label>
               <input
-                type="text"
-                placeholder="Search..."
-                value={locationName === 'Click a spot on the map' ? '' : locationName}
-                onChange={(e) => setLocationName(e.target.value)}
-                onKeyDown={handleSearch}
-                className="w-full bg-[var(--color-base)] border border-[var(--color-border)] rounded-lg p-2.5 pl-8 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors truncate"
+                type="datetime-local"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                style={{ colorScheme: 'dark' }}
+                className="w-full bg-[var(--color-base)] border border-[var(--color-border)] rounded-lg p-2.5 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
               />
-              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
             </div>
-          </div>
 
-          <div className="flex flex-col h-full justify-center">
-            <button
-              onClick={() => {
-                console.log('Launch Prediction clicked');
-                analyzeEvent();
-              }}
-              disabled={loading}
-              type="button"
-              style={{ pointerEvents: 'auto' }}
-              className="w-full h-[42px] bg-[var(--color-accent)] hover:bg-[#00c853] active:opacity-75 text-[#050505] font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex items-center justify-center gap-2"
-            >
-              {loading && <Loader2 size={14} className="animate-spin" />}
-              {loading ? "Simulating..." : "Launch Prediction"}
-            </button>
-          </div>
+            <div className="flex flex-col h-full justify-center">
+              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide flex justify-between">
+                <span>Duration</span>
+                <span className="text-[var(--color-accent)]">{duration} Hours</span>
+              </label>
+              <input
+                type="range"
+                min="1" max="12" step="0.5"
+                value={duration}
+                onChange={(e) => setDuration(parseFloat(e.target.value))}
+                style={{ accentColor: 'var(--color-accent)' }}
+                className="w-full h-2 bg-[var(--color-base)] rounded-lg appearance-none cursor-pointer"
+              />
+            </div>
+
+            <div className="flex flex-col h-full justify-center">
+              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-2 uppercase tracking-wide">Modifiers</label>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <input type="checkbox" checked={rain} onChange={e => setRain(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
+                  <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Rain</span>
+                </label>
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <input type="checkbox" checked={emergency} onChange={e => setEmergency(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
+                  <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Emergency</span>
+                </label>
+                <label className="flex items-center gap-2.5 cursor-pointer group">
+                  <input type="checkbox" checked={multiEvent} onChange={e => setMultiEvent(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
+                  <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Multi-Event</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex flex-col h-full justify-center min-w-0 xl:col-span-2">
+              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Location (Search or Click Map)</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={locationName === 'Click a spot on the map' ? '' : locationName}
+                  onChange={(e) => setLocationName(e.target.value)}
+                  onKeyDown={handleSearch}
+                  className="w-full bg-[var(--color-base)] border border-[var(--color-border)] rounded-lg p-2.5 pl-8 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors truncate"
+                />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+              </div>
+            </div>
+
+            <div className="flex flex-col h-full justify-center">
+              <button
+                onClick={() => {
+                  console.log('Launch Prediction clicked');
+                  analyzeEvent();
+                }}
+                disabled={loading}
+                type="button"
+                style={{ pointerEvents: 'auto' }}
+                className="w-full h-[42px] bg-[var(--color-accent)] hover:bg-[#00c853] active:opacity-75 text-[#050505] font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+              >
+                {loading && <Loader2 size={14} className="animate-spin" />}
+                {loading ? "Simulating..." : "Launch Prediction"}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -361,27 +360,10 @@ export function LiveDashboard({
                 disabled={isAiProcessing || !aiCommand.trim()}
                 className="w-[120px] bg-[var(--color-accent)] hover:bg-[#00c853] active:opacity-75 text-[#050505] font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex flex-col items-center justify-center gap-1 shrink-0"
               >
-                {isAiProcessing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                {isAiProcessing ? "Working" : "Send"}
+                {isAiProcessing && <Loader2 size={18} className="animate-spin" />}
+                {isAiProcessing ? "Processing..." : "launch Prediction"}
               </button>
             </div>
-            
-            {aiLogs.length > 0 && (
-              <div className="bg-[var(--color-base)] rounded-xl p-4 border border-[var(--color-border)] max-h-[150px] overflow-y-auto custom-scrollbar flex flex-col gap-2">
-                {aiLogs.map((log, idx) => (
-                  <div key={idx} className={`text-sm flex gap-2 items-start ${
-                    log.type === 'thinking' ? 'text-[var(--color-text-muted)] italic animate-pulse' :
-                    log.type === 'tool' ? 'text-blue-400 font-medium' :
-                    log.type === 'success' ? 'text-[var(--color-accent)] font-medium' :
-                    log.type === 'error' ? 'text-red-400 font-bold' :
-                    'text-[var(--color-text-main)]'
-                  }`}>
-                    {log.type === 'message' && <Bot size={16} className="mt-0.5 shrink-0 text-[var(--color-accent)]" />}
-                    <span className="whitespace-pre-wrap">{log.text}</span>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -459,70 +441,69 @@ export function LiveDashboard({
             <div className="flex flex-col gap-6">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Timeline Chart */}
-              <div className="lg:col-span-1 h-full bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] p-5 rounded-xl shadow-2xl flex flex-col min-w-0 relative overflow-hidden group">
+                <div className="lg:col-span-1 h-full bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] p-5 rounded-xl shadow-2xl flex flex-col min-w-0 relative overflow-hidden group">
                   <TimelineChart timelineData={data.timeline} />
-              </div>
-
-              {/* Metrics Grid */}
-              <div className="lg:col-span-1 grid grid-cols-2 gap-4 min-w-0">
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-accent)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
-                  <InfoTooltip text="Calculated using a RandomForest ML Model trained on historical city traffic data, predicting the excess traffic volume based on event type, weather, and time of day." />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 z-10">Surge</span>
-                  <span className="text-4xl font-bold text-[var(--color-accent)] z-10">+{data.prediction.total_incidents}</span>
-                </div>
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-accent)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
-                  <InfoTooltip text="Derived from the ML model's confidence rating combined with a cascading failure graph analysis of surrounding road network bottlenecks." />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 z-10">Risk Score</span>
-                  <span className="text-4xl font-bold text-[var(--color-accent)] z-10">{Math.round(data.prediction.confidence * 100)}</span>
-                </div>
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-text-main)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
-                  <InfoTooltip text="Calculated dynamically using a queuing theory allocation algorithm factoring in predicted incidents and available city resources." />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <span className="text-[11px] font-bold text-[var(--color-accent)] uppercase tracking-widest mb-1 z-10">Dispatch Units</span>
-                  <span className="text-4xl font-bold text-[var(--color-text-main)] z-10">{data.dispatch.total_units}</span>
-                </div>
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-text-main)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
-                  <InfoTooltip text="Economic impact modeling of lost person-hours due to gridlock, converted to local currency including congestion surcharges." />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <span className="text-[11px] font-bold text-[var(--color-accent)] uppercase tracking-widest mb-1 z-10">Est. Cost</span>
-                  <span className="text-4xl font-bold text-[var(--color-text-main)] z-10">₹{data.economic_impact.cost_lakhs}L</span>
-                </div>
-              </div>
-
-              {/* Alerts & Econ */}
-              <div className="lg:col-span-1 flex flex-col gap-4 min-w-[280px]">
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center relative shadow-2xl group">
-                  <div className="absolute right-0 top-0 w-24 h-24 bg-[var(--color-text-muted)]/10 blur-xl rounded-full translate-x-1/2 -translate-y-1/2" />
-                  <h2 className={`text-[11px] font-bold mb-2 flex items-center gap-2 uppercase tracking-widest ${
-                    data.dispatch.alert_level === 'RED' ? 'text-red-500' : 
-                    data.dispatch.alert_level === 'AMBER' ? 'text-amber-500' : 
-                    'text-[var(--color-accent)]'
-                  }`}>
-                    <AlertTriangle size={16} /> {data.dispatch.alert_level}
-                  </h2>
-                  <p className="text-sm text-[var(--color-text-muted)] leading-relaxed font-medium">{data.dispatch.justification}</p>
                 </div>
 
-                <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-start relative shadow-2xl group">
-                  <InfoTooltip text="Suggested emergency services are chosen from nearby high-risk junctions and predicted incident demand." alignRight />
-                  <div className="absolute right-0 top-0 w-24 h-24 bg-[var(--color-accent)]/10 blur-xl rounded-full translate-x-1/2 -translate-y-1/2" />
-                  <h2 className="text-[11px] font-bold mb-3 flex items-center gap-2 text-[var(--color-accent)] uppercase tracking-widest">
-                    <AlertTriangle size={16} /> Emergency Services
-                  </h2>
-                  <div className="flex flex-col gap-3">
-                    {data.emergency_services?.map((svc, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-sm border-b border-[var(--color-border)] pb-2 last:border-0">
-                        <span className="text-[var(--color-text-main)] font-medium flex items-center gap-2">
-                          {svc.type === 'hospital' ? '🏥' : svc.type === 'fire' ? '🚒' : '🚓'} {svc.name}
-                        </span>
-                        <span className="font-bold text-[var(--color-accent)]">{svc.distance_km} km</span>
-                      </div>
-                    ))}
+                {/* Metrics Grid */}
+                <div className="lg:col-span-1 grid grid-cols-2 gap-4 min-w-0">
+                  <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-accent)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
+                    <InfoTooltip text="Calculated using a RandomForest ML Model trained on historical city traffic data, predicting the excess traffic volume based on event type, weather, and time of day." />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 z-10">Surge</span>
+                    <span className="text-4xl font-bold text-[var(--color-accent)] z-10">+{data.prediction.total_incidents}</span>
+                  </div>
+                  <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-accent)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
+                    <InfoTooltip text="Derived from the ML model's confidence rating combined with a cascading failure graph analysis of surrounding road network bottlenecks." />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 z-10">Risk Score</span>
+                    <span className="text-4xl font-bold text-[var(--color-accent)] z-10">{Math.round(data.prediction.confidence * 100)}</span>
+                  </div>
+                  <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-text-main)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
+                    <InfoTooltip text="Calculated dynamically using a queuing theory allocation algorithm factoring in predicted incidents and available city resources." />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <span className="text-[11px] font-bold text-[var(--color-accent)] uppercase tracking-widest mb-1 z-10">Dispatch Units</span>
+                    <span className="text-4xl font-bold text-[var(--color-text-main)] z-10">{data.dispatch.total_units}</span>
+                  </div>
+                  <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] border-t-2 border-t-[var(--color-text-main)] rounded-xl p-5 flex flex-col justify-center items-center relative group shadow-2xl">
+                    <InfoTooltip text="Economic impact modeling of lost person-hours due to gridlock, converted to local currency including congestion surcharges." />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <span className="text-[11px] font-bold text-[var(--color-accent)] uppercase tracking-widest mb-1 z-10">Est. Cost</span>
+                    <span className="text-4xl font-bold text-[var(--color-text-main)] z-10">₹{data.economic_impact.cost_lakhs}L</span>
                   </div>
                 </div>
-              </div>
+
+                {/* Alerts & Econ */}
+                <div className="lg:col-span-1 flex flex-col gap-4 min-w-[280px]">
+                  <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center relative shadow-2xl group">
+                    <div className="absolute right-0 top-0 w-24 h-24 bg-[var(--color-text-muted)]/10 blur-xl rounded-full translate-x-1/2 -translate-y-1/2" />
+                    <h2 className={`text-[11px] font-bold mb-2 flex items-center gap-2 uppercase tracking-widest ${data.dispatch.alert_level === 'RED' ? 'text-red-500' :
+                        data.dispatch.alert_level === 'AMBER' ? 'text-amber-500' :
+                          'text-[var(--color-accent)]'
+                      }`}>
+                      <AlertTriangle size={16} /> {data.dispatch.alert_level}
+                    </h2>
+                    <p className="text-sm text-[var(--color-text-muted)] leading-relaxed font-medium">{data.dispatch.justification}</p>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-start relative shadow-2xl group">
+                    <InfoTooltip text="Suggested emergency services are chosen from nearby high-risk junctions and predicted incident demand." alignRight />
+                    <div className="absolute right-0 top-0 w-24 h-24 bg-[var(--color-accent)]/10 blur-xl rounded-full translate-x-1/2 -translate-y-1/2" />
+                    <h2 className="text-[11px] font-bold mb-3 flex items-center gap-2 text-[var(--color-accent)] uppercase tracking-widest">
+                      <AlertTriangle size={16} /> Emergency Services
+                    </h2>
+                    <div className="flex flex-col gap-3">
+                      {data.emergency_services?.map((svc, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-sm border-b border-[var(--color-border)] pb-2 last:border-0">
+                          <span className="text-[var(--color-text-main)] font-medium flex items-center gap-2">
+                            {svc.type === 'hospital' ? '🏥' : svc.type === 'fire' ? '🚒' : '🚓'} {svc.name}
+                          </span>
+                          <span className="font-bold text-[var(--color-accent)]">{svc.distance_km} km</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Full Width Economic Impact Summary */}
@@ -533,14 +514,14 @@ export function LiveDashboard({
                   <span className="font-bold text-[var(--color-accent)] text-3xl relative z-10 mb-2">{data.economic_impact.person_hours} hrs</span>
                   <span className="text-sm text-[var(--color-text-muted)] text-center leading-relaxed max-w-[90%]">Total civic productivity delay estimated based on localized gridlock volume.</span>
                 </div>
-                
+
                 <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center items-center shadow-2xl relative group">
                   <InfoTooltip text="Derived from predicted incident counts and assumed average people per vehicle in the impacted network." />
                   <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 relative z-10">Affected Commuters</span>
                   <span className="font-bold text-[var(--color-accent)] text-3xl relative z-10 mb-2">{data.economic_impact.affected_commuters?.toLocaleString()}</span>
                   <span className="text-sm text-[var(--color-text-muted)] text-center leading-relaxed max-w-[90%]">Projected number of individuals directly impacted across the network.</span>
                 </div>
-                
+
                 <div className="bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-5 flex flex-col justify-center items-center shadow-2xl relative group">
                   <InfoTooltip text="Estimated from predicted congestion volume applying a fixed per-incident fuel burn rate." />
                   <span className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1 relative z-10">Fuel Wasted</span>

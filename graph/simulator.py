@@ -110,9 +110,7 @@ def get_edge_name(edge_data):
 
 def find_nearest_node(G, lat, lng):
     try:
-        # Try finding nearest edge to avoid isolated/disconnected nodes (common inside parks)
-        nearest_edge = ox.distance.nearest_edges(G, X=lng, Y=lat)
-        return nearest_edge[0]
+        return ox.distance.nearest_nodes(G, X=lng, Y=lat)
     except Exception:
         try:
             return ox.distance.nearest_nodes(G, X=lng, Y=lat)
