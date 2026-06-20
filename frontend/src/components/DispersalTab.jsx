@@ -42,15 +42,34 @@ const BENGALURU_BOUNDS = [
 const HeatmapLayer = ({ points }) => {
   const map = useMap();
   const [zoom, setZoom] = useState(map.getZoom());
+  const [isValidSize, setIsValidSize] = useState(map.getSize().x > 0);
 
   useEffect(() => {
     const onZoom = () => setZoom(map.getZoom());
+    const onResize = () => {
+      if (map.getSize().x > 0) setIsValidSize(true);
+      else setIsValidSize(false);
+    };
+    
     map.on('zoomend', onZoom);
-    return () => map.off('zoomend', onZoom);
-  }, [map]);
+    map.on('resize', onResize);
+    
+    const interval = setInterval(() => {
+      if (map.getSize().x > 0 && !isValidSize) {
+        setIsValidSize(true);
+        map.invalidateSize();
+      }
+    }, 250);
+
+    return () => {
+      map.off('zoomend', onZoom);
+      map.off('resize', onResize);
+      clearInterval(interval);
+    };
+  }, [map, isValidSize]);
 
   useEffect(() => {
-    if (!points || points.length === 0) return;
+    if (!points || points.length === 0 || !isValidSize) return;
 
     const heatData = points.map(p => [p.lat, p.lng, Math.min(p.density * 45.0, 1.0)]);
     const radius = Math.min(44, Math.max(12, Math.round(12 * Math.pow(1.14, zoom - 12))));
@@ -68,7 +87,7 @@ const HeatmapLayer = ({ points }) => {
     return () => {
       map.removeLayer(layer);
     };
-  }, [points, map, zoom]);
+  }, [points, map, zoom, isValidSize]);
 
   return null;
 };

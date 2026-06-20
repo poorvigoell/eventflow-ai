@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    port: 4173,
+    port: 5173,
     host: 'localhost'
   },
   assetsInclude: ['**/*.geojson']

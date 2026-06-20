@@ -229,15 +229,7 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
         </Polyline>
       ))}
 
-      {targetBoundary && (
-        <GeoJSON 
-          key={JSON.stringify(targetBoundary)}
-          data={targetBoundary} 
-          style={{ color: '#888', weight: 2, opacity: 0.8, fillOpacity: 0.15 }}
-        >
-          <LeafletTooltip direction="top">Searched Location Boundary</LeafletTooltip>
-        </GeoJSON>
-      )}
+
     </>
   );
 
