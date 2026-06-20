@@ -249,7 +249,15 @@ def get_nearest_road_flow_points(G, lat: float, lng: float, num_roads: int = 5, 
         if point.distance(geom) > degree_threshold:
             continue
 
+        highway_type = data.get('highway', '')
+        if isinstance(highway_type, list):
+            highway_type = highway_type[0]
+            
         dist = point.distance(geom)
+        
+        # Penalize tiny residential/unclassified roads so TomTom prefers major roads
+        if highway_type in ['residential', 'unclassified', 'service', 'footway', 'pedestrian', 'path']:
+            dist += 100.0 # Huge penalty so they sort last
         road_name = data.get('name') or data.get('highway') or 'Unnamed Road'
         if isinstance(road_name, list):
             road_name = road_name[0] if road_name else 'Unnamed Road'
@@ -288,7 +296,7 @@ def get_nearest_road_flow_points(G, lat: float, lng: float, num_roads: int = 5, 
 # Global in-memory throttle state for TomTom polling requests
 _TOMTOM_THROTTLE = {}
 _TOMTOM_THROTTLE_TTL_SECONDS = 60
-_TOMTOM_THROTTLE_MAX_PER_MINUTE = 1
+_TOMTOM_THROTTLE_MAX_PER_MINUTE = 20
 
 @app.get('/api/external/tomtom/flow')
 async def external_tomtom_flow(request: Request, lat: float, lng: float, radius_m: int = 1000):
@@ -677,11 +685,13 @@ class AnomalyRequest(BaseModel):
     junction_name: Optional[str] = None
     is_accident: Optional[bool] = None
     is_emergency_stuck: Optional[bool] = None
+last_inject_time = None
 
 @app.post("/api/traffic/inject-anomaly")
 async def inject_traffic_anomaly(req: AnomalyRequest):
     """Manually inject a traffic anomaly"""
     global G
+    
     junction = req.junction_name
     
     if not junction:
@@ -817,8 +827,8 @@ def clear_anomaly(anomaly_id: str):
 async def anomaly_generator():
     last_incident_id = None
     while True:
-        # Random sleep between 1 to 2 minutes for faster testing
-        await asyncio.sleep(random.randint(120, 180))
+        # Fetch every 5 minutes (300 seconds)
+        await asyncio.sleep(300)
         
         # Auto-resolve anomalies older than 10 minutes
         now = datetime.datetime.now()
@@ -880,10 +890,7 @@ async def anomaly_generator():
                         else:
                             real_injected = True # We already injected this real one recently, suppress mock
                         
-            if not real_injected:
-                # Fallback to simulated chaos for demo purposes
-                anomaly = await inject_traffic_anomaly(AnomalyRequest())
-                print(f"Auto-injected MOCK anomaly at {anomaly['junction']}.")
+            # We completely removed the MOCK fallback here so alerts only come from real TomTom data or the Simulate Chaos button!
                 
         except Exception as e:
             print(f"Error auto-injecting anomaly: {e}")

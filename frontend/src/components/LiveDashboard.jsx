@@ -372,7 +372,7 @@ export function LiveDashboard({
 
       {/* 2. Map (Fixed/Fullscreen Height) */}
       <div className={`w-full overflow-hidden shadow-2xl shrink-0 ${isFullscreen ? 'fixed inset-0 z-[100] bg-[var(--color-base)] rounded-none' : 'relative z-[10] rounded-xl h-[500px]'}`}>
-        <div className={`absolute z-[60] flex justify-between items-center w-full p-4 pointer-events-none`}>
+        <div className={`absolute top-0 left-0 right-0 z-[500] flex justify-between items-center w-full p-4 pointer-events-none`}>
           <h2 className="text-sm font-bold flex items-center gap-2 bg-[var(--color-surface)]/80 backdrop-blur-md px-4 py-2 rounded-xl pointer-events-auto shadow-2xl uppercase tracking-widest text-[var(--color-text-main)]">
             <MapIcon className="text-[var(--color-accent)]" size={16} /> Live Dispatch Map
           </h2>
@@ -404,7 +404,11 @@ export function LiveDashboard({
           </div>
         </div>
         {tomtomError && (
-          <div className="absolute left-1/2 -translate-x-1/2 top-6 z-[9999] w-auto max-w-md rounded-full border border-amber-500/50 bg-[var(--color-surface)]/95 backdrop-blur-md text-amber-500 px-5 py-2 text-xs font-bold shadow-2xl text-center">
+          <div 
+            onClick={() => setTomtomError('')}
+            className="absolute left-1/2 -translate-x-1/2 top-20 z-[99999] cursor-pointer w-auto min-w-[300px] max-w-lg rounded-xl border border-amber-500 bg-amber-500/10 backdrop-blur-md text-amber-500 px-6 py-3 text-sm font-bold shadow-2xl text-center flex items-center justify-center gap-2"
+          >
+            <AlertTriangle size={16} />
             {tomtomError}
           </div>
         )}

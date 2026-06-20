@@ -14,6 +14,9 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
       // the new anomaly via WebSocket, which App.jsx listens to and adds to state.
     } catch (e) {
       console.error(e);
+      if (e.response && e.response.status === 429) {
+        window.alert("Please wait 10 seconds before simulating another anomaly to avoid spamming the system.");
+      }
     } finally {
       setLoading(false);
     }

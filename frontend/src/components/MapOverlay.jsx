@@ -152,19 +152,33 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
 
       // emergency routes
       if (emergencyRoutes && emergencyRoutes.length > 0) {
+        const greenShades = ['#00e676', '#b2ff59', '#64dd17'];
+        let hospIdx = 0;
         emergencyRoutes.forEach((route, i) => {
-          items.push({ id: `em-primary-${i}`, label: `Primary Hospital Route (${route.name || i+1})`, type: 'line', color: '#00d2ff', visible: overlayVisibility[`em-primary-${i}`] ?? true, positions: route.primary_path || [] });
-          items.push({ id: `em-detour-${i}`, label: `Emergency Detour (${route.name || i+1})`, type: 'line', color: '#00e676', visible: overlayVisibility[`em-detour-${i}`] ?? true, positions: route.detour_path || [] });
+          if (route.type === 'hospital' || !route.type) {
+            const color = greenShades[hospIdx % greenShades.length];
+            hospIdx++;
+            items.push({ id: `em-detour-${i}`, label: `Emergency Route (${route.name || i+1})`, type: 'line', color: color, visible: overlayVisibility[`em-detour-${i}`] ?? true, positions: route.detour_path || [] });
+          }
         });
       }
 
       // external traffic (TomTom) - include positions when available
       if (externalTraffic?.flow && Array.isArray(externalTraffic.flow)) {
-        const roadColors = ['#ff4444', '#ffaa00', '#44ff44', '#00e676', '#00b0ff'];
+        const roadColors = ['#ff00ff', '#00b0ff', '#ffea00', '#ff0000', '#00ff00']; // pink, blue, yellow, red, green
+        const seenCoords = new Set();
+        let displayIdx = 0;
         externalTraffic.flow.forEach((rf, idx) => {
           const segment = rf.flow?.flowSegmentData;
           const coords = (segment?.coordinates?.coordinate || []).map(c => [c.latitude, c.longitude]);
-          items.push({ id: `tt-${idx}`, label: rf.road_name || `Traffic ${idx+1}`, type: 'line', color: roadColors[idx % roadColors.length], dashed: true, visible: overlayVisibility[`tt-${idx}`] ?? true, positions: coords });
+          if (coords.length > 0) {
+            const coordStr = coords.flat().join(',');
+            if (!seenCoords.has(coordStr)) {
+              seenCoords.add(coordStr);
+              items.push({ id: `tt-${idx}`, label: rf.road_name || `Traffic ${idx+1}`, type: 'line', color: roadColors[displayIdx % roadColors.length], dashed: true, visible: overlayVisibility[`tt-${idx}`] ?? true, positions: coords });
+              displayIdx++;
+            }
+          }
         });
       } else if (externalTraffic?.flow && externalTraffic.flow.flowSegmentData) {
         const speed = externalTraffic.flow.flowSegmentData?.currentSpeed || 0;
@@ -274,7 +288,6 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
       center={[lat, lng]}
       zoom={14}
       style={{ height: '100%', width: '100%', backgroundColor: '#111' }}
-      className="z-0"
       zoomControl={false}
       maxBounds={BENGALURU_BOUNDS}
       minZoom={10}
@@ -307,33 +320,32 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
 
       <DynamicRoads roads={criticalRoads} overlayVisibility={overlayVisibility} roadZoom={roadZoom} setRoadZoom={setRoadZoom} />
 
-      {emergencyRoutes?.map((route, idx) => {
-        const destination = route.detour_path && route.detour_path.length > 0 ? route.detour_path[route.detour_path.length - 1] : null;
-        const showPrimary = overlayVisibility ? (overlayVisibility[`em-primary-${idx}`] ?? true) : true;
-        const showDetour = overlayVisibility ? (overlayVisibility[`em-detour-${idx}`] ?? true) : true;
-        return (
-          <React.Fragment key={`emergency-${idx}`}>
-            {showPrimary && (
-              <Polyline
-                positions={route.primary_path}
-                pathOptions={{ color: '#00d2ff', weight: 4, opacity: 0.6, dashArray: '5, 10' }}
-              >
-                <LeafletTooltip>Primary Hospital Route (Blocked/Risk)</LeafletTooltip>
-              </Polyline>
-            )}
-            {showDetour && (
-              <Polyline
-                positions={route.detour_path}
-                pathOptions={{ color: '#00e676', weight: 5, opacity: 0.9 }}
-              >
-                <LeafletTooltip>Safe Emergency Detour ({route.name})</LeafletTooltip>
-              </Polyline>
-            )}
+      {(() => {
+        let hospIdx = 0;
+        const greenShades = ['#00e676', '#b2ff59', '#64dd17'];
+        return emergencyRoutes?.map((route, idx) => {
+          if (route.type && route.type !== 'hospital') return null;
+          
+          const destination = route.detour_path && route.detour_path.length > 0 ? route.detour_path[route.detour_path.length - 1] : null;
+          const showDetour = overlayVisibility ? (overlayVisibility[`em-detour-${idx}`] ?? true) : true;
+          const color = greenShades[hospIdx % greenShades.length];
+          hospIdx++;
+
+          return (
+            <React.Fragment key={`emergency-${idx}`}>
+              {showDetour && (
+                <Polyline
+                  positions={route.detour_path}
+                  pathOptions={{ color: color, weight: 3.5, opacity: 0.9 }}
+                >
+                  <LeafletTooltip>Emergency Route ({route.name})</LeafletTooltip>
+                </Polyline>
+              )}
             {destination && (
               <CircleMarker 
                 center={destination} 
                 radius={6}
-                pathOptions={{ color: '#111', fillColor: '#00e676', fillOpacity: 1, weight: 2 }}
+                pathOptions={{ color: '#111', fillColor: color, fillOpacity: 1, weight: 2 }}
               >
                 <LeafletTooltip direction="top" permanent={false} opacity={1} className="font-bold">
                   🏥 {route.name}
@@ -342,35 +354,48 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
             )}
           </React.Fragment>
         );
-      })}
+      });
+      })()}
 
       {/* Render external traffic from TomTom */}
       {externalTraffic?.flow && Array.isArray(externalTraffic.flow) ? (
-        externalTraffic.flow.map((roadFlow, roadIndex) => {
-          const flow = roadFlow?.flow;
-          const segment = flow?.flowSegmentData;
-          const coords = (segment?.coordinates?.coordinate || []);
-          const speed = segment?.currentSpeed || 0;
-          const roadColors = ['#ff4444', '#ffaa00', '#44ff44', '#00e676', '#00b0ff'];
-          const lineColor = roadColors[roadIndex % roadColors.length];
-          const id = `tt-${roadIndex}`;
-          const visible = overlayVisibility ? (overlayVisibility[id] ?? true) : true;
+        (() => {
+          const roadColors = ['#ff00ff', '#00b0ff', '#ffea00', '#ff0000', '#00ff00']; // pink, blue, yellow, red, green
+          const seenCoords = new Set();
+          let displayIdx = 0;
+          return externalTraffic.flow.map((roadFlow, roadIndex) => {
+            const flow = roadFlow?.flow;
+            const segment = flow?.flowSegmentData;
+            const coords = (segment?.coordinates?.coordinate || []);
+            const speed = segment?.currentSpeed || 0;
+            
+            if (coords.length === 0) return null;
+            
+            const positions = coords.map(c => [c.latitude, c.longitude]);
+            const coordStr = positions.flat().join(',');
+            if (seenCoords.has(coordStr)) return null;
+            seenCoords.add(coordStr);
+            
+            const lineColor = roadColors[displayIdx % roadColors.length];
+            const id = `tt-${roadIndex}`;
+            const visible = overlayVisibility ? (overlayVisibility[id] ?? true) : true;
+            displayIdx++;
 
-          if (!visible || coords.length === 0) return null;
+            if (!visible) return null;
 
-          const positions = coords.map(c => [c.latitude, c.longitude]);
-          return (
-            <Polyline
-              key={`tomtom-road-${roadIndex}`}
-              positions={positions}
-              pathOptions={{ color: lineColor, weight: 3, opacity: 0.95, dashArray: '2,8' }}
-            >
-              <LeafletTooltip>
-                {roadFlow.road_name}: Speed {speed} km/h | Flow: {segment?.frc || 'N/A'}
-              </LeafletTooltip>
-            </Polyline>
-          );
-        })
+            return (
+              <Polyline
+                key={`tomtom-road-${roadIndex}`}
+                positions={positions}
+                pathOptions={{ color: lineColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
+              >
+                <LeafletTooltip>
+                  {roadFlow.road_name}: Speed {speed} km/h | Flow: {segment?.frc || 'N/A'}
+                </LeafletTooltip>
+              </Polyline>
+            );
+          });
+        })()
       ) : externalTraffic?.flow?.flowSegmentData?.coordinates?.coordinate ? (
         (() => {
           const coords = externalTraffic.flow.flowSegmentData.coordinates.coordinate || [];
@@ -384,7 +409,7 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
             <Polyline
               key={`tomtom-single`}
               positions={positions}
-              pathOptions={{ color: speedColor, weight: 3, opacity: 0.95, dashArray: '2,8' }}
+              pathOptions={{ color: speedColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
             >
               <LeafletTooltip>
                 Speed: {speed} km/h | Flow: {externalTraffic.flow.flowSegmentData?.frc || 'N/A'}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 const markerSample = (color) => (
   <span
@@ -59,7 +60,8 @@ export default function Legend() {
     return () => window.removeEventListener('overlayStateUpdate', handler);
   }, []);
 
-  const toggle = (id) => {
+  const toggle = (id, e) => {
+    if (e) e.stopPropagation();
     setVisibility((prev) => {
       const next = { ...prev, [id]: !prev[id] };
       try { localStorage.setItem('overlayVisibility', JSON.stringify(next)); } catch (err) { /* ignore */ }
@@ -88,15 +90,27 @@ export default function Legend() {
           {items.map(item => {
             const isVisible = visibility[item.id] ?? item.visible ?? true;
             return (
-              <div key={item.id} className="flex items-center gap-3 text-left w-full">
+              <div key={item.id} className="flex items-center gap-3 text-left w-full group">
                 <button onClick={() => toggle(item.id)} className="flex items-center gap-3 w-full text-left">
                   <div className="shrink-0" style={{ opacity: isVisible ? 1 : 0.35 }}>
-                  {renderLegendIcon(item)}
-                </div>
-                <div className={`text-[13px] text-[var(--color-text-main)] ${isVisible ? '' : 'opacity-50 line-through'}`}>{item.label}</div>
+                    {renderLegendIcon(item)}
+                  </div>
+                  <div className={`text-[13px] text-[var(--color-text-main)] ${isVisible ? '' : 'opacity-50 line-through'}`}>{item.label}</div>
                 </button>
-                <div className="flex items-center gap-2">
-                  <button onClick={(e) => focus(item.id, e)} className="text-xs px-2 py-1 bg-[var(--color-surface)] border border-[var(--color-border)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]">Focus</button>
+                <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={(e) => toggle(item.id, e)} 
+                    className="flex items-center justify-center p-1.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] hover:bg-[var(--color-surface-hover)] transition-colors"
+                    title={isVisible ? "Hide Route" : "Show Route"}
+                  >
+                    {isVisible ? <Eye size={14} /> : <EyeOff size={14} />}
+                  </button>
+                  <button 
+                    onClick={(e) => focus(item.id, e)} 
+                    className="text-[11px] font-bold uppercase tracking-wider px-2 py-1.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] hover:bg-[var(--color-surface-hover)] transition-colors"
+                  >
+                    Focus
+                  </button>
                 </div>
               </div>
             );

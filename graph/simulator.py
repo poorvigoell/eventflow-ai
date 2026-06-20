@@ -302,13 +302,16 @@ def get_critical_roads(G, lat, lng, radius=1000):
         # Create a small subgraph for fast computation (within ~1.5km walking distance)
         subgraph = nx.ego_graph(G, center_node, radius=radius, distance='length')
         
-        # Calculate edge betweenness
-        centrality = nx.edge_betweenness_centrality(subgraph, weight='travel_time')
+        # Calculate edge betweenness (approximated for speed)
+        k_val = min(30, len(subgraph.nodes))
+        centrality = nx.edge_betweenness_centrality(subgraph, weight='travel_time', k=k_val)
         
         # Sort edges by centrality
         sorted_edges = sorted(centrality.items(), key=lambda x: x[1], reverse=True)
         
         critical_paths = []
+        seen_road_names = set()
+        
         # Get top critical roads
         for edge_key, score in sorted_edges:
             if len(edge_key) == 3:
@@ -317,8 +320,16 @@ def get_critical_roads(G, lat, lng, radius=1000):
                 u, v = edge_key
                 k = 0
             
-            if 'geometry' in subgraph[u][v][k]:
-                coords = list(subgraph[u][v][k]['geometry'].coords)
+            edge_data = subgraph[u][v][k]
+            road_name = get_edge_name(edge_data)
+            
+            # Ensure we only pick one segment per unique road name
+            if road_name in seen_road_names and road_name != "Unnamed Road":
+                continue
+            seen_road_names.add(road_name)
+            
+            if 'geometry' in edge_data:
+                coords = list(edge_data['geometry'].coords)
             else:
                 u_data = subgraph.nodes[u]
                 v_data = subgraph.nodes[v]
@@ -328,6 +339,7 @@ def get_critical_roads(G, lat, lng, radius=1000):
             flipped_coords = [[y, x] for x, y in coords]
             
             critical_paths.append({
+                "road_name": road_name,
                 "coordinates": flipped_coords,
                 "weight": score
             })

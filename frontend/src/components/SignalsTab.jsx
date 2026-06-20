@@ -216,7 +216,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                 <Card className="h-[500px] flex flex-col bg-[var(--color-surface)]">
                   <h3 className="text-sm font-bold text-[var(--color-text-muted)] mb-4 uppercase tracking-wider">Green Split Optimization</h3>
                   <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
                         <XAxis type="number" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
@@ -309,7 +309,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                 <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col">
                   <h3 className="text-sm font-bold text-[var(--color-text-muted)] mb-2 uppercase tracking-wider">Average Queue Length Over Time</h3>
                   <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <LineChart data={rlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                         <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />

@@ -31,7 +31,7 @@ export const TimelineChart = ({ timelineData }) => {
         Timeline is generated as inflow, steady, and exodus phases using predicted incidents, event time, and duration.
       </p>
       <div className="flex-1 min-h-[160px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <AreaChart data={data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="colorIncidents" x1="0" y1="0" x2="0" y2="1">
