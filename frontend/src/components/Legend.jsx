@@ -75,7 +75,7 @@ export default function Legend() {
 
   // Always render a compact floating legend so it's immediately visible on the map.
   return (
-    <div style={{ position: 'absolute', top: 18, left: 18, zIndex: 9999, width: 300, maxHeight: 'calc(100% - 36px)', overflow: 'auto', pointerEvents: 'auto' }}>
+    <div style={{ position: 'absolute', top: 18, left: 18, zIndex: 500, width: 300, maxHeight: 'calc(100% - 36px)', overflow: 'auto', pointerEvents: 'auto' }}>
       <div className="bg-[var(--color-surface)]/85 backdrop-blur-xl border border-[var(--color-border)]/80 rounded-xl p-3 text-sm text-[var(--color-text-main)] shadow-2xl">
         <div className="flex items-center justify-between mb-2">
           <div className="font-bold text-xs text-[var(--color-text-muted)] uppercase tracking-widest">Map Key</div>

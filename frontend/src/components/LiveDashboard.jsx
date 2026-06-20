@@ -58,7 +58,6 @@ export function LiveDashboard({
   locationName, setLocationName,
   targetBoundary, setTargetBoundary,
   analyzeEvent,
-  setData,
   isFullscreen, setIsFullscreen,
   initialMapData
 }) {
@@ -410,7 +409,7 @@ export function LiveDashboard({
           </div>
         )}
 
-        <div className="w-full h-full z-0 relative pointer-events-auto">
+        <div className="w-full h-full relative pointer-events-auto">
           <MapOverlay
             lat={lat}
             lng={lng}
