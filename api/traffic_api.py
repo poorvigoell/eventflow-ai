@@ -35,7 +35,7 @@ class SimulatedTrafficAPI(TrafficProvider):
         self.active_anomalies = {}  # junction_name -> anomaly details
         self.anomaly_id_counter = 1
         
-    def inject_anomaly(self, junction_name: str) -> Dict[str, Any]:
+    def inject_anomaly(self, junction_name: str, is_accident: bool = None, is_emergency_stuck: bool = None) -> Dict[str, Any]:
         """Manually trigger a severe traffic jam at a specific location."""
         # Simulated API values for a severe jam
         free_flow_time = random.randint(45, 90) # seconds
@@ -46,8 +46,8 @@ class SimulatedTrafficAPI(TrafficProvider):
         current_travel_time = int(free_flow_time * (1 + jam_factor))
         
         # Calculate Severity Factors
-        emergency_stuck = random.random() < 0.25
-        accident = random.random() < 0.35
+        emergency_stuck = is_emergency_stuck if is_emergency_stuck is not None else random.random() < 0.25
+        accident = is_accident if is_accident is not None else random.random() < 0.35
         
         # Score calculation (Max 100)
         # Jam factor: up to 40 points

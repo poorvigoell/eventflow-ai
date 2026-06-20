@@ -189,28 +189,14 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
 
               <HeatmapLayer points={currentSnapshot.points} />
             </MapContainer>
-            <div className="px-4 pb-4 absolute bottom-0 left-0 right-0 pointer-events-none">
-              <div className="pointer-events-auto">
-                <MapLegend
-                  items={[
-                    { icon: <span className="inline-block w-4 h-4 rounded-full bg-[#800080]" />, label: 'Purple Line', description: 'Purple-line metro stations' },
-                    { icon: <span className="inline-block w-4 h-4 rounded-full bg-[#00b050]" />, label: 'Green Line', description: 'Green-line metro stations' },
-                    { icon: <span className="inline-block w-4 h-4 rounded-full bg-[#ffd700]" />, label: 'Yellow Line', description: 'Yellow-line metro stations' },
-                    { icon: <span className="inline-block w-4 h-4 rounded-full bg-[#ff69b4]" />, label: 'Pink Line', description: 'Pink-line metro stations' },
-                    { icon: <span className="inline-block w-4 h-4 rounded-full bg-[#00d2ff]" />, label: 'Bus Stop', description: 'BMTC bus stop locations' },
-                    { icon: <span className="inline-block w-4 h-4 rounded-full bg-[var(--color-text-main)]" />, label: 'Parking', description: 'Parking hub locations' }
-                  ]}
-                />
-              </div>
-            </div>
           </div>
 
-          <div className="w-[320px] flex flex-col gap-4">
-            <Card className="relative overflow-visible">
-              <div className="absolute top-2 right-2 group z-50">
+          <div className="w-[320px] flex flex-col gap-3 pb-2">
+            <Card className="relative overflow-visible !p-3">
+              <div className="absolute top-1 right-1 group z-50">
                 <button
                   type="button"
-                  className="flex items-center justify-center w-10 h-10 rounded-full bg-[rgba(16,185,129,0.15)] border border-[rgba(16,185,129,0.35)] shadow-[0_0_0_8px_rgba(16,185,129,0.08)] ring-1 ring-[rgba(16,185,129,0.18)] p-2 text-[var(--color-accent)] transition duration-200 hover:scale-110"
+                  className="flex items-center justify-center p-2 text-[var(--color-accent)] transition duration-200 hover:scale-110"
                 >
                   <Info size={16} />
                 </button>
@@ -221,27 +207,27 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
                   </p>
                 </div>
               </div>
-              <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-widest mb-1">Economic Segment</p>
-              <div className="flex justify-start items-center gap-4 mb-4">
-                <h3 className="text-2xl font-bold text-[var(--color-text-main)]">{eco_profile.segment}</h3>
-                <div className="bg-[var(--color-accent)] text-[#050505] w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl">
+              <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1">Economic Segment</p>
+              <div className="flex justify-start items-center gap-3 mb-2">
+                <h3 className="text-xl font-bold text-[var(--color-text-main)]">{eco_profile.segment}</h3>
+                <div className="bg-[var(--color-accent)] text-[#050505] w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
                   {Math.round(eco_profile.score * 100)}
                 </div>
               </div>
-              <div className="text-sm space-y-1 mb-4 text-[var(--color-text-main)]">
-                <div>Premium: <b>{eco_profile.rich_pct}%</b></div>
-                <div>Middle: <b>{eco_profile.middle_pct}%</b></div>
-                <div>Mass: <b>{eco_profile.lower_pct}%</b></div>
+              <div className="text-xs space-y-1 mb-2 text-[var(--color-text-main)]">
+                <div className="flex justify-between"><span>Premium:</span> <b>{eco_profile.rich_pct}%</b></div>
+                <div className="flex justify-between"><span>Middle:</span> <b>{eco_profile.middle_pct}%</b></div>
+                <div className="flex justify-between"><span>Mass:</span> <b>{eco_profile.lower_pct}%</b></div>
               </div>
-              <div className="text-sm bg-[var(--color-base)] text-[var(--color-text-main)] p-2 rounded">
+              <div className="text-xs bg-[var(--color-base)] text-[var(--color-text-main)] p-2 rounded">
                 Primary Mode: <b className="text-[var(--color-accent)]">{eco_profile.primary_mode}</b>
               </div>
             </Card>
 
-            <Card>
-              <h3 className="text-sm font-bold text-[var(--color-text-muted)] mb-3">Expected Mode Split</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center text-sm">
+            <Card className="!p-3">
+              <h3 className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)] mb-2">Expected Mode Split</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-xs">
                   <span className="text-[var(--color-text-main)] font-bold">Metro</span>
                   <span className="text-[var(--color-accent)]">{eco_profile.transport_split.metro_pct}%</span>
                 </div>
@@ -258,6 +244,14 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
                 </div>
               </div>
             </Card>
+
+            <MapLegend
+              items={[
+                { icon: <span className="inline-block w-[14px] h-[14px] rounded-full border-2 border-white/80" style={{ background: '#800080', boxShadow: '0 0 8px #800080' }} />, label: 'Metro' },
+                { icon: <span className="inline-block w-[14px] h-[14px] rounded-full border-2 border-white/80" style={{ background: '#00d2ff', boxShadow: '0 0 8px #00d2ff' }} />, label: 'Bus' },
+                { icon: <span className="inline-block w-[14px] h-[14px] rounded-full border-2 border-white/80" style={{ background: '#ffffff', boxShadow: '0 0 8px #ffffff' }} />, label: 'Parking' }
+              ]}
+            />
           </div>
         </div>
       </div>

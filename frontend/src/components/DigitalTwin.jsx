@@ -43,10 +43,10 @@ const predIcon = new L.Icon({
 const InfoTooltip = ({ text }) => (
   <div className="absolute right-4 top-4 z-50">
     <div className="group inline-flex">
-      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[rgba(16,185,129,0.15)] border border-[rgba(16,185,129,0.35)] shadow-[0_0_0_8px_rgba(16,185,129,0.08)] ring-1 ring-[rgba(16,185,129,0.18)] transition duration-200 hover:scale-110">
+      <div className="flex items-center justify-center transition duration-200 hover:scale-110">
         <Info size={16} className="text-[var(--color-accent)] cursor-help" />
       </div>
-      <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-[rgba(15,23,42,0.96)] border border-[rgba(255,255,255,0.08)] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.35)] text-[13px] leading-5 text-white opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+      <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
         {text}
       </div>
     </div>

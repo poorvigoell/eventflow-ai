@@ -26,7 +26,10 @@ export const TimelineChart = ({ timelineData }) => {
 
   return (
     <div className="w-full h-full min-h-[200px] flex flex-col">
-      <h3 className="text-xs uppercase tracking-widest text-[var(--color-text-muted)] mb-4 font-bold">Predicted Traffic Build-up Timeline</h3>
+      <h3 className="text-xs uppercase tracking-widest text-[var(--color-accent)] mb-2 font-bold">Predicted Traffic Build-up Timeline</h3>
+      <p className="text-xs text-[var(--color-text-muted)] opacity-80 mb-4 pr-4 leading-relaxed">
+        Timeline is generated as inflow, steady, and exodus phases using predicted incidents, event time, and duration.
+      </p>
       <div className="flex-1 min-h-[160px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 5, right: 0, left: -20, bottom: 0 }}>

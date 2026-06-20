@@ -74,8 +74,9 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   const [anomalies, setAnomalies] = useState([])
-  const [hasUnreadAnomalies, setHasUnreadAnomalies] = useState(false)
   const [toast, setToast] = useState(null)
+  
+  const hasActiveAnomalies = anomalies.some(a => a.status === 'active')
 
   // Fetch initial anomalies
   useEffect(() => {
@@ -93,9 +94,6 @@ function App() {
       if (msg.type === 'NEW_ANOMALY') {
         setAnomalies(prev => [msg.data, ...prev]);
         setToast(`🚨 Severe Gridlock Detected at ${msg.data.junction}!`);
-        if (activeTabRef.current !== 'alerts') {
-          setHasUnreadAnomalies(true);
-        }
         setTimeout(() => setToast(null), 5000);
       } else if (msg.type === 'ANOMALY_RESOLVED') {
         setAnomalies(prev => prev.map(a => 
@@ -117,9 +115,6 @@ function App() {
   const handleTabChange = (tab) => {
     setActiveTab(tab)
     window.location.hash = tab
-    if (tab === 'alerts') {
-      setHasUnreadAnomalies(false);
-    }
     if (!visitedTabs.includes(tab)) {
       setVisitedTabs(prev => [...prev, tab]);
     }
@@ -215,7 +210,7 @@ function App() {
           <TabButton active={activeTab === 'twin'} onClick={() => handleTabChange('twin')} icon={<Cpu size={18} />} label="Digital Twin" />
           <div className="relative">
             <TabButton active={activeTab === 'alerts'} onClick={() => handleTabChange('alerts')} icon={<Bell size={18} />} label="Live Alerts" />
-            {hasUnreadAnomalies && (
+            {hasActiveAnomalies && (
               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--color-surface)] animate-pulse" />
             )}
           </div>
