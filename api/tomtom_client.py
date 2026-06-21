@@ -41,7 +41,12 @@ async def get_incidents_in_bbox(min_lat: float, min_lng: float, max_lat: float, 
         return _inc_cache[cache_key]
     # TomTom incidents endpoint (adjust path/params to match current API)
     path = '/traffic/services/5/incidentDetails'
-    bbox = f"{min_lat},{min_lng},{max_lat},{max_lng}"
-    data = await _fetch(path, {'bbox': bbox})
+    bbox = f"{min_lng},{min_lat},{max_lng},{max_lat}"
+    params = {
+        'bbox': bbox,
+        'fields': '{incidents{type,geometry{type,coordinates},properties{id,iconCategory,magnitudeOfDelay,events{description,code},delay,from,to}}}',
+        'language': 'en-GB'
+    }
+    data = await _fetch(path, params)
     _inc_cache[cache_key] = data
     return data

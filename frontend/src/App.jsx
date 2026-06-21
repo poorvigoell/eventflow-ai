@@ -87,24 +87,50 @@ function App() {
 
   // WebSocket Connection
   useEffect(() => {
-    const ws = new WebSocket('ws://localhost:8000/ws/alerts');
-    
-    ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data);
-      if (msg.type === 'NEW_ANOMALY') {
-        setAnomalies(prev => [msg.data, ...prev]);
-        setToast(`🚨 Severe Gridlock Detected at ${msg.data.junction}!`);
-        setTimeout(() => setToast(null), 5000);
-      } else if (msg.type === 'ANOMALY_RESOLVED') {
-        setAnomalies(prev => prev.map(a => 
-          a.id === msg.anomaly_id ? { ...a, status: 'resolved', resolved_at: msg.resolved_at } : a
-        ));
-      }
+    let isMounted = true;
+    let ws = null;
+    let reconnectTimer = null;
+
+    const connectWS = () => {
+      ws = new WebSocket('ws://127.0.0.1:8000/ws/alerts');
+      
+      ws.onmessage = (event) => {
+        if (!isMounted) return;
+        const msg = JSON.parse(event.data);
+        
+        if (msg.type === 'NEW_ANOMALY') {
+          setAnomalies(prev => {
+            // Prevent duplicate anomalies from being added
+            if (prev.some(a => a.id === msg.data.id)) return prev;
+            return [msg.data, ...prev];
+          });
+          setToast(`🚨 Severe Gridlock Detected at ${msg.data.junction}!`);
+          setTimeout(() => setToast(null), 5000);
+        } else if (msg.type === 'ANOMALY_RESOLVED') {
+          setAnomalies(prev => prev.map(a => 
+            a.id === msg.anomaly_id ? { ...a, status: 'resolved', resolved_at: msg.resolved_at } : a
+          ));
+        }
+      };
+
+      ws.onclose = () => {
+        if (isMounted) {
+          console.log('WebSocket closed, reconnecting in 2s...');
+          reconnectTimer = setTimeout(connectWS, 2000);
+        }
+      };
+      
+      ws.onerror = (err) => {
+        console.error('WebSocket Error:', err);
+      };
     };
 
+    connectWS();
+
     return () => {
-      // Small delay prevents React StrictMode from throwing the "closed before established" warning
-      setTimeout(() => ws.close(), 1000);
+      isMounted = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) ws.close();
     };
   }, []);
 

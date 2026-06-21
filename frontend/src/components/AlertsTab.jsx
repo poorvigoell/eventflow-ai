@@ -31,7 +31,7 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
     }
   };
 
-  const activeAnomalies = anomalies.filter(a => a.status !== 'resolved').sort((a, b) => (b.severity_score || 0) - (a.severity_score || 0));
+  const activeAnomalies = anomalies.filter(a => a.status !== 'resolved').sort((a, b) => (b.severity_score || 0) - (a.severity_score || 0)).slice(0, 4);
   const pastAnomalies = anomalies.filter(a => a.status === 'resolved').sort((a, b) => new Date(b.resolved_at || 0) - new Date(a.resolved_at || 0)).slice(0, 5);
 
   const renderAnomalyCard = (anomaly, isActive) => {
@@ -231,19 +231,19 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
                 <ul className="space-y-3 text-[var(--color-text-muted)]">
                   <li className="flex gap-2">
                     <span className="text-[var(--color-accent)] mt-0.5">▪</span>
-                    <div><strong className="text-[var(--color-text-main)]">Live Tracking:</strong> The system constantly scans the live traffic map to detect severe delays and accidents as they happen in the city.</div>
+                    <div><strong className="text-[var(--color-text-main)]">TomTom Live Tracking:</strong> EventFlow constantly scans the TomTom Traffic API to detect severe delays, automatically surfacing the top 4 worst real-world gridlocks in the city.</div>
                   </li>
                   <li className="flex gap-2">
                     <span className="text-[var(--color-accent)] mt-0.5">▪</span>
-                    <div><strong className="text-[var(--color-text-main)]">Smart Estimates:</strong> Once a jam is found, the system calculates exactly how long it will take police and ambulances to arrive, taking the current traffic speeds into account.</div>
+                    <div><strong className="text-[var(--color-text-main)]">Smart Estimates:</strong> Calculates exact ETAs for emergency responders based on live traffic speeds around the incident.</div>
                   </li>
                   <li className="flex gap-2">
                     <span className="text-[var(--color-accent)] mt-0.5">▪</span>
-                    <div><strong className="text-[var(--color-text-main)]">Instant Solutions:</strong> It automatically generates an action plan. It figures out exactly how long to keep traffic lights green to clear the jam, and finds the fastest parallel streets to divert incoming cars.</div>
+                    <div><strong className="text-[var(--color-text-main)]">Instant Solutions:</strong> Generates an algorithmic action plan detailing optimal traffic light timings and diversion routes to clear the jam.</div>
                   </li>
                   <li className="flex gap-2 bg-[var(--color-accent)]/10 p-3 rounded-lg border border-[var(--color-accent)]/20 mt-4">
                     <span className="text-[var(--color-accent)] mt-0.5">▪</span>
-                    <div className="text-[var(--color-accent)]/90"><strong className="text-[var(--color-accent)] font-bold">Sample Feed:</strong> Due to the current unavailability of a live commercial traffic feed, click the <span className="font-bold">"Send Sample Feed"</span> button. This sends simulated values to test the complete pipeline and see exactly how the system reacts!</div>
+                    <div className="text-[var(--color-accent)]/90"><strong className="text-[var(--color-accent)] font-bold">Manual Testing:</strong> Click <span className="font-bold">"Send Sample Feed"</span> to instantly inject a simulated anomaly and test the system's pipeline.</div>
                   </li>
                 </ul>
               </div>

@@ -705,6 +705,8 @@ class AnomalyRequest(BaseModel):
     junction_name: Optional[str] = None
     is_accident: Optional[bool] = None
     is_emergency_stuck: Optional[bool] = None
+    is_real: Optional[bool] = False
+    source_id: Optional[str] = None
 last_inject_time = None
 
 @app.post("/api/traffic/inject-anomaly")
@@ -724,7 +726,13 @@ async def inject_traffic_anomaly(req: AnomalyRequest):
         if not junction or junction == "Unknown":
             junction = random.choice(["Central Street", "MG Road", "Brigade Road", "Koramangala 80ft Road", "Silk Board Junction"])
             
-    anomaly = traffic_simulator.inject_anomaly(junction, is_accident=req.is_accident, is_emergency_stuck=req.is_emergency_stuck)
+    anomaly = traffic_simulator.inject_anomaly(
+        junction, 
+        is_accident=req.is_accident, 
+        is_emergency_stuck=req.is_emergency_stuck,
+        is_real=req.is_real,
+        source_id=req.source_id
+    )
     
     # Attempt to find real traffic control center using OSMnx
     nearest_center = "Central Traffic HQ (Mock)"
@@ -845,15 +853,13 @@ def clear_anomaly(anomaly_id: str):
 
 # Background task for automatic anomaly injection
 async def anomaly_generator():
-    last_incident_id = None
+    # Give the frontend a few seconds to establish WebSockets before the first broadcast
+    await asyncio.sleep(5)
     while True:
-        # Fetch every 5 minutes (300 seconds)
-        await asyncio.sleep(300)
-        
-        # Auto-resolve anomalies older than 10 minutes
+        # Auto-resolve simulated anomalies older than 10 minutes
         now = datetime.datetime.now()
         for anomaly in list(traffic_simulator.active_anomalies.values()):
-            if anomaly["status"] == "active":
+            if anomaly["status"] == "active" and not anomaly.get("is_real", False):
                 anomaly_time = datetime.datetime.fromisoformat(anomaly["timestamp"])
                 if (now - anomaly_time).total_seconds() > 600: # 10 mins
                     traffic_simulator.clear_anomaly(anomaly["id"])
@@ -862,7 +868,7 @@ async def anomaly_generator():
                         "anomaly_id": anomaly["id"],
                         "resolved_at": anomaly["resolved_at"]
                     })
-                    print(f"Auto-resolved anomaly {anomaly['id']}")
+                    print(f"Auto-resolved simulated anomaly {anomaly['id']}")
 
         # Auto-inject an anomaly (Real TomTom or Mock fallback)
         try:
@@ -875,45 +881,66 @@ async def anomaly_generator():
                 data = await get_incidents_in_bbox(12.8, 77.4, 13.1, 77.8)
                 
                 if data and "incidents" in data and len(data["incidents"]) > 0:
-                    # Find worst incident based on delay
-                    worst_incident = None
-                    max_delay = 0
-                    for inc in data["incidents"]:
-                        delay = inc.get("properties", {}).get("delay", 0)
-                        if delay > max_delay:
-                            max_delay = delay
-                            worst_incident = inc
-                            
-                    # Trigger alert if delay is > 3 mins and it's a new incident
-                    if worst_incident and max_delay > 180:
-                        props = worst_incident["properties"]
-                        incident_id = props.get("id", str(random.random()))
+                    current_real_ids = []
+                    
+                    # Sort incidents by delay descending to get the top 4 worst
+                    sorted_incidents = sorted(
+                        data["incidents"], 
+                        key=lambda x: x.get("properties", {}).get("delay") or 0, 
+                        reverse=True
+                    )[:4]
+                    
+                    # Track top 4 real incidents
+                    for inc in sorted_incidents:
+                        delay = inc.get("properties", {}).get("delay") or 0
+                        incident_id = inc.get("properties", {}).get("id")
                         
-                        if incident_id != last_incident_id:
-                            roads = props.get("roadNames")
-                            junction_name = roads[0] if roads else "Unknown Road"
+                        if delay > 180 and incident_id:
+                            current_real_ids.append(incident_id)
                             
-                            # Check for true accident (iconCategory 1 = Accident, 14 = Broken Down Vehicle)
-                            icon_cat = props.get("iconCategory", 0)
-                            is_real_accident = icon_cat in [1, 14]
-                            
-                            # Generate the tactical plan using our ML/Algorithmic pipeline, enforcing 100% truth for live alerts
-                            req = AnomalyRequest(junction_name=junction_name, is_accident=is_real_accident, is_emergency_stuck=False)
-                            anomaly = await inject_traffic_anomaly(req)
-                            
-                            # Patch severity based on real TomTom magnitude
-                            magnitude = props.get("magnitudeOfDelay", 2)
-                            anomaly["jam_factor"] = round(min(10.0, 5.0 + (magnitude * 1.5)), 1)
-                            print(f"Auto-injected REAL TomTom anomaly at {anomaly['junction']} (Delay: {max_delay}s).")
-                            real_injected = True
-                            last_incident_id = incident_id
-                        else:
-                            real_injected = True # We already injected this real one recently, suppress mock
+                            # Inject if not active
+                            if incident_id not in traffic_simulator.active_anomalies or traffic_simulator.active_anomalies[incident_id]["status"] != "active":
+                                props = inc["properties"]
+                                from_rd = props.get("from")
+                                to_rd = props.get("to")
+                                junction_name = from_rd if from_rd else (to_rd if to_rd else "Unknown Road")
+                                
+                                icon_cat = props.get("iconCategory", 0)
+                                is_real_accident = icon_cat in [1, 14]
+                                
+                                req = AnomalyRequest(
+                                    junction_name=junction_name, 
+                                    is_accident=is_real_accident, 
+                                    is_emergency_stuck=False,
+                                    is_real=True,
+                                    source_id=incident_id
+                                )
+                                anomaly = await inject_traffic_anomaly(req)
+                                
+                                magnitude = props.get("magnitudeOfDelay", 2)
+                                anomaly["jam_factor"] = round(min(10.0, 5.0 + (magnitude * 1.5)), 1)
+                                print(f"Auto-injected REAL TomTom anomaly at {anomaly['junction']} (Delay: {delay}s).")
+                                real_injected = True
+                                
+                    # Resolve real anomalies that are no longer severe or present in TomTom
+                    for anomaly in list(traffic_simulator.active_anomalies.values()):
+                        if anomaly["status"] == "active" and anomaly.get("is_real", False):
+                            if anomaly["id"] not in current_real_ids:
+                                traffic_simulator.clear_anomaly(anomaly["id"])
+                                await manager.broadcast({
+                                    "type": "ANOMALY_RESOLVED",
+                                    "anomaly_id": anomaly["id"],
+                                    "resolved_at": anomaly["resolved_at"]
+                                })
+                                print(f"Auto-resolved real anomaly {anomaly['id']} because traffic cleared.")
                         
             # We completely removed the MOCK fallback here so alerts only come from real TomTom data or the Simulate Chaos button!
                 
         except Exception as e:
             print(f"Error auto-injecting anomaly: {e}")
+            
+        # Wait 5 minutes before next poll
+        await asyncio.sleep(300)
 
 @app.on_event("startup")
 async def startup_event():
