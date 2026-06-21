@@ -12,9 +12,11 @@ export const MetricBox = ({ title, value, colorClass, subtitle, emoji, infoText 
     <Card className="text-center relative py-8 px-6 flex flex-col items-center justify-center min-h-[160px] hover:z-50 transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_10px_40px_rgba(0,0,0,0.8)] border-t-2 border-t-[var(--color-accent)] overflow-hidden group">
       <div className="absolute inset-0 bg-gradient-to-t from-[var(--color-accent)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
       {infoText && (
-        <div className="absolute top-4 right-4 text-[var(--color-text-muted)] hover:text-[var(--color-text-main)] cursor-help z-50">
-          <Info size={16} />
-          <div className="hidden group-hover:block absolute top-full right-0 mt-2 w-64 p-3 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-xs text-left text-[var(--color-text-main)] z-50 normal-case tracking-normal font-medium leading-relaxed">
+        <div className="absolute top-4 right-4 group/tooltip z-50">
+          <div className="flex items-center justify-center transition duration-200 hover:scale-110">
+            <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+          </div>
+          <div className="absolute top-full right-0 mt-2 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-left text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
             {infoText}
           </div>
         </div>

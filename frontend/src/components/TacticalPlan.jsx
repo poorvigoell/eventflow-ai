@@ -1,4 +1,4 @@
-import { ShieldAlert, Map as MapIcon } from 'lucide-react';
+import { ShieldAlert, Map as MapIcon, Info } from 'lucide-react';
 import { Card, MetricBox } from './ui/components';
 
 export function TacticalPlan({ data }) {
@@ -12,20 +12,30 @@ export function TacticalPlan({ data }) {
 
       {/* Primary Responders */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <MetricBox title="Police Personnel" value={data.tactical.manpower.traffic_police} emoji="👮" infoText="Deployment size is dynamically based on the number of critical traffic bottlenecks and the predicted incident severity." />
-        <MetricBox title="Patrol Vehicles" value={data.tactical.manpower.patrol_vehicles} emoji="🚓" infoText="Calculated to ensure enough vehicles are available to monitor the surrounding road networks and potential spillover zones." />
+        <MetricBox title="Police Personnel" value={data.tactical.manpower.traffic_police} emoji="👮" infoText={<span><strong>Formula:</strong> max(4, 2 + (Junctions × 3) + (Incidents × 0.25))</span>} />
+        <MetricBox title="Patrol Vehicles" value={data.tactical.manpower.patrol_vehicles} emoji="🚓" infoText={<span><strong>Formula:</strong> max(1, 1 + (Junctions × 0.4) + (Incidents × 0.05))</span>} />
       </div>
 
       {/* Support & Logistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricBox title="Ambulance" value={data.tactical.manpower.ambulances} emoji="🚑" infoText="We allocate enough medical units to safely cover the predicted emergency demand, ensuring at least one unit is always on standby." />
-        <MetricBox title="Tow Trucks" value={data.tactical.manpower.tow_trucks} emoji="🚜" infoText="Dispatched proportionally to the expected volume of vehicle breakdowns or illegal parking." />
-        <MetricBox title="Barricades" value={data.tactical.manpower.barricade_teams} emoji="🚧" infoText="One team is assigned to physically close off or redirect traffic at every identified critical bottleneck." />
+        <MetricBox title="Ambulance" value={data.tactical.manpower.ambulances} emoji="🚑" infoText={<span><strong>Formula:</strong> max(1, round(Incidents × 0.12))</span>} />
+        <MetricBox title="Tow Trucks" value={data.tactical.manpower.tow_trucks} emoji="🚜" infoText={<span><strong>Formula:</strong> max(0, round(Incidents × 0.07))</span>} />
+        <MetricBox title="Barricades" value={data.tactical.manpower.barricade_teams} emoji="🚧" infoText={<span><strong>Formula:</strong> max(1, Critical Junctions)</span>} />
       </div>
 
       <div className="grid grid-cols-2 gap-6 mt-8">
-        <Card>
-          <h3 className="text-lg font-bold text-[var(--color-accent)] mb-4">🚧 Active Barricade Protocol</h3>
+        <Card className="overflow-visible">
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="text-lg font-bold text-[var(--color-accent)] m-0">🚧 Active Barricade Protocol</h3>
+            <div className="group relative flex items-center ml-2 z-50">
+              <div className="flex items-center justify-center transition duration-200 hover:scale-110">
+                <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+              </div>
+              <div className="absolute top-full mt-2 left-0 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
+                Barricade assignments are determined by evaluating the Risk Score of each intersection. An intersection is closed if its incident severity threatens secondary network cascades.
+              </div>
+            </div>
+          </div>
           <div className="space-y-3">
             {data.tactical.barricade_roads?.length > 0 ? (
               data.tactical.barricade_roads.map((road, i) => (
@@ -47,8 +57,18 @@ export function TacticalPlan({ data }) {
           </div>
         </Card>
 
-        <Card>
-          <h3 className="text-lg font-bold text-[var(--color-accent)] mb-4">🧭 Routing & Diversion Protocol</h3>
+        <Card className="overflow-visible">
+          <div className="flex items-center gap-2 mb-4">
+            <h3 className="text-lg font-bold text-[var(--color-accent)] m-0">🧭 Routing & Diversion Protocol</h3>
+            <div className="group relative flex items-center ml-2 z-50">
+              <div className="flex items-center justify-center transition duration-200 hover:scale-110">
+                <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+              </div>
+              <div className="absolute top-full mt-2 right-0 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
+                Diversions calculate the fastest alternative path bypassing barricades, using Dijkstra's algorithm on the real-time road network weights.
+              </div>
+            </div>
+          </div>
           <div className="space-y-3">
             {data.tactical.diversion_plan?.length > 0 ? (
               data.tactical.diversion_plan.map((div, i) => (

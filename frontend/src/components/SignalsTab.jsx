@@ -222,7 +222,18 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             <div className="relative">
               <div className="sticky top-6">
                 <Card className="h-[500px] flex flex-col bg-[var(--color-surface)]">
-                  <h3 className="text-sm font-bold text-[var(--color-text-muted)] mb-4 uppercase tracking-wider">Green Split Optimization</h3>
+                  <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xs uppercase tracking-widest text-[var(--color-text-muted)] font-bold m-0">Green Split Optimization</h3>
+                  <div className="group relative flex items-center z-50">
+                    <div className="flex items-center justify-center transition duration-200 hover:scale-110">
+                      <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+                    </div>
+                    <div className="absolute top-full mt-2 right-0 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
+                      <span><strong>Formula:</strong> g<sub>i</sub> = (y<sub>i</sub> / Y) × (C - L)</span><br/><br/>
+                      Calculates the green time (g_i) for a phase by taking its flow ratio (y_i) over the total intersection flow ratio (Y), multiplied by the cycle length (C) minus lost time (L).
+                    </div>
+                  </div>
+                </div>
                   <div className="flex-1 w-full relative">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
@@ -322,7 +333,8 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                         <Info size={16} className="text-[var(--color-accent)] cursor-help" />
                       </div>
                       <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
-                        This chart tracks the average number of vehicles stuck at red lights across all monitored intersections. The RL agent calculates this at each simulation step based on the remaining queue volumes to minimize wait times.
+                        <span><strong>Formula:</strong> Q<sub>t+1</sub> = max(0, Q<sub>t</sub> + A - D × g)</span><br/><br/>
+                        This chart tracks the average number of vehicles stuck at red lights. The agent computes queue volume (Q) over time by adding Arrivals (A) and subtracting Discharge (D) during green time (g).
                       </div>
                     </div>
                   </div>
@@ -351,7 +363,8 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                         <Info size={16} className="text-[var(--color-accent)] cursor-help" />
                       </div>
                       <div className="absolute top-full mt-2 right-0 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
-                        This chart tracks the percentage of event attendees still attempting to leave the area. The backend simulates the evacuation rate based on the volume of traffic successfully cleared through the controlled intersections.
+                        <span><strong>Formula:</strong> E<sub>t+1</sub> = max(0, E<sub>t</sub> - (V<sub>cleared</sub> / C<sub>total</sub>) × 100)</span><br/><br/>
+                        Tracks the percentage of event attendees (E) still attempting to leave. Reduced at each step by the volume of vehicles successfully cleared (V) relative to the total crowd size (C).
                       </div>
                     </div>
                   </div>
