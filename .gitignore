@@ -28,3 +28,4 @@ graph/*.graphml
 cache/
 debug_api.py
 *.csv
+PROJECT_DESCRIPTION.md
