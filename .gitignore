@@ -10,6 +10,8 @@ venv/
 # Data and Models
 data/raw/*.csv
 models/saved/*.joblib
+!models/saved/xgb_incident_model.joblib
+!models/saved/model_meta.joblib
 
 # Graph cache (DO NOT COMMIT THIS, it is too large)
 graph/*.graphml
