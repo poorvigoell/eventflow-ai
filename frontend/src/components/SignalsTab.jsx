@@ -168,7 +168,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
           <div className="flex bg-[var(--color-surface)] rounded-lg p-1 border border-[var(--color-border)]">
             <button 
               onClick={() => setIsRLMode(false)}
-              className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${!isRLMode ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-main)] shadow-md' : 'text-[var(--color-text-muted)]'}`}
+              className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${!isRLMode ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
             >
               Webster Baseline
             </button>

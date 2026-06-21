@@ -178,8 +178,8 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
           disabled={loading}
           className="bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/20 text-[var(--color-accent)] border border-[var(--color-accent)]/30 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all disabled:opacity-50"
         >
-          {loading ? <RefreshCw className="animate-spin" size={20} /> : <Zap size={20} />}
-          Inject Chaos (Simulate)
+          {loading && <RefreshCw className="animate-spin" size={20} />}
+          Send Sample Feed
         </button>
       </div>
 
@@ -221,18 +221,30 @@ export const AlertsTab = ({ anomalies, setAnomalies }) => {
               <h3 className="font-bold text-[var(--color-accent)]">How It Works</h3>
             </div>
 
-            <div className="space-y-4 text-xs text-[var(--color-text-muted)] leading-relaxed">
-              <p className="text-sm mb-2">
-                EventFlow is a smart traffic assistant that automatically spots traffic jams and helps fix them in real-time.
+            <div className="space-y-4 text-xs leading-relaxed">
+              <p className="text-sm mb-2 text-[var(--color-text-main)] font-medium">
+                EventFlow's Live Alerts feature is fully functional and ready to automatically spot traffic jams and help fix them in real-time.
               </p>
 
               <div className="border-t border-[var(--color-border)] pt-3">
-                <p className="text-[var(--color-accent)] font-semibold mb-2">THE PIPELINE:</p>
-                <ul className="list-disc pl-4 space-y-3">
-                  <li><strong>Live Tracking:</strong> The system constantly scans the live TomTom traffic map to detect severe delays and accidents as they happen in the city.</li>
-                  <li><strong>Smart Estimates:</strong> Once a jam is found, the system calculates exactly how long it will take police and ambulances to arrive, taking the current traffic speeds into account.</li>
-                  <li><strong>Instant Solutions:</strong> It automatically generates an action plan. It figures out exactly how long to keep traffic lights green to clear the jam, and finds the fastest parallel streets to divert incoming cars.</li>
-                  <li><strong>Demo Mode:</strong> Click the "Simulate Chaos" button to fake a massive traffic jam. This lets you see exactly how the system reacts without having to wait for a real car crash to happen!</li>
+                <p className="text-[var(--color-accent)] font-bold mb-3 tracking-wide">HOW IT WORKS:</p>
+                <ul className="space-y-3 text-[var(--color-text-muted)]">
+                  <li className="flex gap-2">
+                    <span className="text-[var(--color-accent)] mt-0.5">▪</span>
+                    <div><strong className="text-[var(--color-text-main)]">Live Tracking:</strong> The system constantly scans the live traffic map to detect severe delays and accidents as they happen in the city.</div>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-[var(--color-accent)] mt-0.5">▪</span>
+                    <div><strong className="text-[var(--color-text-main)]">Smart Estimates:</strong> Once a jam is found, the system calculates exactly how long it will take police and ambulances to arrive, taking the current traffic speeds into account.</div>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="text-[var(--color-accent)] mt-0.5">▪</span>
+                    <div><strong className="text-[var(--color-text-main)]">Instant Solutions:</strong> It automatically generates an action plan. It figures out exactly how long to keep traffic lights green to clear the jam, and finds the fastest parallel streets to divert incoming cars.</div>
+                  </li>
+                  <li className="flex gap-2 bg-[var(--color-accent)]/10 p-3 rounded-lg border border-[var(--color-accent)]/20 mt-4">
+                    <span className="text-[var(--color-accent)] mt-0.5">▪</span>
+                    <div className="text-[var(--color-accent)]/90"><strong className="text-[var(--color-accent)] font-bold">Sample Feed:</strong> Due to the current unavailability of a live commercial traffic feed, click the <span className="font-bold">"Send Sample Feed"</span> button. This sends simulated values to test the complete pipeline and see exactly how the system reacts!</div>
+                  </li>
                 </ul>
               </div>
             </div>
