@@ -96,6 +96,23 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
   const [timeMin, setTimeMin] = useState(15);
   const [dispersalData, setDispersalData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    let interval;
+    if (loading) {
+      setProgress(0);
+      interval = setInterval(() => {
+        setProgress(prev => {
+          const increment = (99 - prev) * 0.08;
+          return prev + increment;
+        });
+      }, 100);
+    } else {
+      setProgress(100);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
 
   useEffect(() => {
     const fetchDispersal = async () => {
@@ -119,9 +136,45 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
   }, [lat, lng, eventType, totalIncidents]);
 
   if (loading || !dispersalData) {
+    const radius = 40;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDashoffset = circumference - (progress / 100) * circumference;
+
     return (
-      <div className="flex-1 flex items-center justify-center text-gray-500">
-        Generating high-fidelity crowd simulation...
+      <div className="flex-1 flex flex-col items-center justify-center space-y-6 min-h-[500px]">
+        <div className="relative w-32 h-32">
+          {/* Background circle */}
+          <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+            <circle
+              className="text-[var(--color-surface)]"
+              strokeWidth="8"
+              stroke="currentColor"
+              fill="transparent"
+              r={radius}
+              cx="50"
+              cy="50"
+            />
+            {/* Progress circle */}
+            <circle
+              className="text-[var(--color-accent)] transition-all duration-100 ease-out"
+              strokeWidth="8"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              stroke="currentColor"
+              fill="transparent"
+              r={radius}
+              cx="50"
+              cy="50"
+            />
+          </svg>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-2xl font-bold text-[var(--color-accent)]">
+            {Math.round(progress)}%
+          </div>
+        </div>
+        <div className="text-[var(--color-text-muted)] animate-pulse font-medium tracking-wide">
+          Generating high-fidelity crowd simulation...
+        </div>
       </div>
     );
   }

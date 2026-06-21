@@ -91,7 +91,11 @@ export default function Legend() {
             const isVisible = visibility[item.id] ?? item.visible ?? true;
             return (
               <div key={item.id} className="flex items-center gap-3 text-left w-full group">
-                <button onClick={() => toggle(item.id)} className="flex items-center gap-3 w-full text-left">
+                <button 
+                  onClick={() => toggle(item.id)} 
+                  className="flex items-center gap-3 w-full text-left"
+                  title={item.details}
+                >
                   <div className="shrink-0" style={{ opacity: isVisible ? 1 : 0.35 }}>
                     {renderLegendIcon(item)}
                   </div>

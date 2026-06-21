@@ -269,9 +269,11 @@ def get_nearest_road_flow_points(G, lat: float, lng: float, num_roads: int = 5, 
             
         dist = point.distance(geom)
         
-        # Penalize tiny residential/unclassified roads so TomTom prefers major roads
-        if highway_type in ['residential', 'unclassified', 'service', 'footway', 'pedestrian', 'path']:
-            dist += 100.0 # Huge penalty so they sort last
+        # Skip walking paths entirely, and give a smaller penalty to residential roads
+        if highway_type in ['footway', 'pedestrian', 'path']:
+            continue
+        elif highway_type in ['residential', 'unclassified', 'service', 'track']:
+            dist += 0.003 # ~330m penalty so it prefers nearby major roads but falls back locally
         road_name = data.get('name') or data.get('highway') or 'Unnamed Road'
         if isinstance(road_name, list):
             road_name = road_name[0] if road_name else 'Unnamed Road'

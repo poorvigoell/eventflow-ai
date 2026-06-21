@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/components';
-import { Radio, Brain, Activity, Zap, Loader2 } from 'lucide-react';
+import { Radio, Brain, Activity, Zap, Loader2, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 export const SignalsTab = ({ signals, eventConfig }) => {
@@ -154,6 +154,14 @@ export const SignalsTab = ({ signals, eventConfig }) => {
       <div className="flex justify-between items-center border-b border-[var(--color-border)] pb-4 mb-6">
         <h2 className="text-2xl font-bold flex items-center gap-2">
           <Radio className="text-[var(--color-accent)]" size={28}/> Adaptive Signal Control
+          <div className="group relative flex items-center ml-3">
+            <div className="flex items-center justify-center transition duration-200 hover:scale-110">
+              <Info size={18} className="text-[var(--color-accent)] cursor-help" />
+            </div>
+            <div className="absolute top-full mt-2 left-0 w-80 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
+              When a major event finishes (like a concert), a massive crowd spills out into the surrounding streets, creating a sudden spike in traffic. Traditional traffic lights are static and can't handle this surge. This page demonstrates how an AI agent can take control of the traffic signals in the "Spillover Zone" to flush traffic out efficiently.
+            </div>
+          </div>
         </h2>
         
         {rlStatus.model_exists && (
@@ -306,8 +314,18 @@ export const SignalsTab = ({ signals, eventConfig }) => {
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col">
-                  <h3 className="text-sm font-bold text-[var(--color-text-muted)] mb-2 uppercase tracking-wider">Average Queue Length Over Time</h3>
+                <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider m-0">Average Queue Length Over Time</h3>
+                    <div className="group relative flex items-center">
+                      <div className="flex items-center justify-center transition duration-200 hover:scale-110">
+                        <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+                      </div>
+                      <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
+                        This chart tracks the average number of vehicles stuck at red lights across all monitored intersections. The RL agent calculates this at each simulation step based on the remaining queue volumes to minimize wait times.
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex-1 w-full relative">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <LineChart data={rlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -325,8 +343,18 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                   </div>
                 </Card>
                 
-                <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col">
-                  <h3 className="text-sm font-bold text-[var(--color-text-muted)] mb-2 uppercase tracking-wider">Crowd Evacuation Progress</h3>
+                <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider m-0">Crowd Evacuation Progress</h3>
+                    <div className="group relative flex items-center">
+                      <div className="flex items-center justify-center transition duration-200 hover:scale-110">
+                        <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+                      </div>
+                      <div className="absolute top-full mt-2 right-0 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
+                        This chart tracks the percentage of event attendees still attempting to leave the area. The backend simulates the evacuation rate based on the volume of traffic successfully cleared through the controlled intersections.
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex-1 w-full relative">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={rlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>

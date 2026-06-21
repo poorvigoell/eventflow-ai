@@ -171,11 +171,21 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
         externalTraffic.flow.forEach((rf, idx) => {
           const segment = rf.flow?.flowSegmentData;
           const coords = (segment?.coordinates?.coordinate || []).map(c => [c.latitude, c.longitude]);
+          const speed = segment?.currentSpeed || 0;
           if (coords.length > 0) {
             const coordStr = coords.flat().join(',');
             if (!seenCoords.has(coordStr)) {
               seenCoords.add(coordStr);
-              items.push({ id: `tt-${idx}`, label: rf.road_name || `Traffic ${idx+1}`, type: 'line', color: roadColors[displayIdx % roadColors.length], dashed: true, visible: overlayVisibility[`tt-${idx}`] ?? true, positions: coords });
+              items.push({ 
+                id: `tt-${idx}`, 
+                label: rf.road_name || `Traffic ${idx+1}`, 
+                type: 'line', 
+                color: roadColors[displayIdx % roadColors.length], 
+                dashed: true, 
+                visible: overlayVisibility[`tt-${idx}`] ?? true, 
+                positions: coords,
+                details: `Speed ${speed} km/h | Flow: ${segment?.frc || 'N/A'}`
+              });
               displayIdx++;
             }
           }
@@ -184,7 +194,16 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
         const speed = externalTraffic.flow.flowSegmentData?.currentSpeed || 0;
         const speedColor = speed < 10 ? '#ff4444' : speed < 20 ? '#ffaa00' : '#44ff44';
         const coordsSingle = (externalTraffic.flow.flowSegmentData.coordinates.coordinate || []).map(c => [c.latitude, c.longitude]);
-        items.push({ id: 'tt-single', label: 'Traffic (TomTom)', type: 'line', color: speedColor, dashed: true, visible: overlayVisibility['tt-single'] ?? true, positions: coordsSingle });
+        items.push({ 
+          id: 'tt-single', 
+          label: 'Traffic (TomTom)', 
+          type: 'line', 
+          color: speedColor, 
+          dashed: true, 
+          visible: overlayVisibility['tt-single'] ?? true, 
+          positions: coordsSingle,
+          details: `Speed: ${speed} km/h | Flow: ${externalTraffic.flow.flowSegmentData?.frc || 'N/A'}`
+        });
       }
 
       overlayItemsRef.current = items;
@@ -384,15 +403,24 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
             if (!visible) return null;
 
             return (
-              <Polyline
-                key={`tomtom-road-${roadIndex}`}
-                positions={positions}
-                pathOptions={{ color: lineColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
-              >
-                <LeafletTooltip>
-                  {roadFlow.road_name}: Speed {speed} km/h | Flow: {segment?.frc || 'N/A'}
-                </LeafletTooltip>
-              </Polyline>
+              <React.Fragment key={`tomtom-road-wrapper-${roadIndex}`}>
+                {/* Invisible thick polyline for easy hovering */}
+                <Polyline
+                  positions={positions}
+                  pathOptions={{ color: 'transparent', weight: 12, opacity: 0 }}
+                >
+                  <LeafletTooltip sticky>
+                    {roadFlow.road_name}: Speed {speed} km/h | Flow: {segment?.frc || 'N/A'}
+                  </LeafletTooltip>
+                </Polyline>
+                {/* Visible dashed polyline */}
+                <Polyline
+                  key={`tomtom-road-${roadIndex}`}
+                  positions={positions}
+                  pathOptions={{ color: lineColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
+                  interactive={false}
+                />
+              </React.Fragment>
             );
           });
         })()
@@ -406,15 +434,22 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
           const visible = overlayVisibility ? (overlayVisibility['tt-single'] ?? true) : true;
           if (!visible) return null;
           return (
-            <Polyline
-              key={`tomtom-single`}
-              positions={positions}
-              pathOptions={{ color: speedColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
-            >
-              <LeafletTooltip>
-                Speed: {speed} km/h | Flow: {externalTraffic.flow.flowSegmentData?.frc || 'N/A'}
-              </LeafletTooltip>
-            </Polyline>
+            <React.Fragment key={`tomtom-single-wrapper`}>
+              <Polyline
+                positions={positions}
+                pathOptions={{ color: 'transparent', weight: 12, opacity: 0 }}
+              >
+                <LeafletTooltip sticky>
+                  Speed: {speed} km/h | Flow: {externalTraffic.flow.flowSegmentData?.frc || 'N/A'}
+                </LeafletTooltip>
+              </Polyline>
+              <Polyline
+                key={`tomtom-single`}
+                positions={positions}
+                pathOptions={{ color: speedColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
+                interactive={false}
+              />
+            </React.Fragment>
           );
         })()
       ) : null}

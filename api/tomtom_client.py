@@ -29,7 +29,7 @@ async def get_flow_by_point(lat: float, lng: float):
     if cache_key in _flow_cache:
         return _flow_cache[cache_key]
     # TomTom Flow Segment example endpoint (public docs specify exact path/version)
-    path = '/traffic/services/4/flowSegmentData/absolute/10/json'
+    path = '/traffic/services/4/flowSegmentData/absolute/22/json'
     data = await _fetch(path, {'point': f'{lat},{lng}'})
     _flow_cache[cache_key] = data
     return data
