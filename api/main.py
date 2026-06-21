@@ -45,7 +45,7 @@ app = FastAPI(title="EventFlow AI Backend")
 # Allow React frontend to connect
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,7 +56,7 @@ G = None
 
 @app.on_event("startup")
 def load_graph_on_startup():
-    global G
+    global G, _rl_model
     graph_path = os.path.join(os.path.dirname(__file__), "..", "graph", "bengaluru_network.graphml")
     model_dir = os.path.join(os.path.dirname(__file__), "..", "models", "saved")
     model_path = os.path.join(model_dir, "xgb_incident_model.joblib")
@@ -84,6 +84,20 @@ def load_graph_on_startup():
         print(f"Error loading graph: {e}")
         sys.stdout.flush()
         raise
+
+    if RL_AVAILABLE:
+        rl_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "ppo_eventflow.zip")
+        if os.path.exists(rl_path):
+            print("Loading RL model into memory...")
+            sys.stdout.flush()
+            
+            try:
+                _rl_model = PPO.load(rl_path)
+                print("RL model loaded successfully!")
+                sys.stdout.flush()
+            except Exception as e:
+                print(f"Error loading RL model: {e}")
+                sys.stdout.flush()
 
 class EventRequest(BaseModel):
     event_type: str
@@ -430,8 +444,11 @@ def get_rl_status():
         "last_trained": datetime.datetime.fromtimestamp(os.path.getmtime(model_path)).isoformat() if exists else None
     }
 
+_rl_model = None
+
 @app.post("/api/rl/start-session")
 def start_rl_session(request: RLStartRequest):
+    global _rl_model
     if not RL_AVAILABLE:
         return {"error": "RL not available"}
     global G
@@ -452,11 +469,12 @@ def start_rl_session(request: RLStartRequest):
     env = EventFlowEnv(G=G, config=config)
     obs, _ = env.reset()
     
-    model = PPO.load(model_path, env=env)
+    if _rl_model is None:
+        _rl_model = PPO.load(model_path, env=env)
     
     rl_sessions[session_id] = {
         "env": env,
-        "model": model,
+        "model": _rl_model,
         "last_accessed": datetime.datetime.now()
     }
     

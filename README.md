@@ -41,8 +41,9 @@ Make sure you have Node.js and Python 3.9+ installed.
    ```
 4. Start the FastAPI backend server:
    ```bash
-   python -m uvicorn api.main:app --reload --port 8000
+   OMP_NUM_THREADS=1 python -m uvicorn api.main:app --reload --port 8000
    ```
+   *(Note: `OMP_NUM_THREADS=1` is required to prevent PyTorch deadlocks on macOS when spinning up inside FastAPI).*
 
 ### 2. Frontend Setup
 1. Open a new terminal and navigate to the `frontend` directory:
