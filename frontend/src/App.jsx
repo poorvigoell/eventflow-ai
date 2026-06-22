@@ -107,6 +107,7 @@ function App() {
   const activeTabRef = useRef(activeTab)
   const [visitedTabs, setVisitedTabs] = useState([startingTab])
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [activeAnalysisSource, setActiveAnalysisSource] = useState(null)
 
   const [anomalies, setAnomalies] = useState([])
   const [toast, setToast] = useState(null)
@@ -188,6 +189,7 @@ function App() {
     }
     setLoading(true)
     setData(null) // Clear previous analytics
+    setActiveAnalysisSource('prediction_setup')
     try {
       console.log("Sending prediction request...");
       const response = await axios.post('http://localhost:8000/api/predict', {
@@ -215,13 +217,13 @@ function App() {
   // Save to cache whenever relevant state changes
   useEffect(() => {
     const stateToCache = {
-      lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary, data
+      lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary
     };
     localStorage.setItem(CACHE_KEY, JSON.stringify({
       timestamp: Date.now(),
       state: stateToCache
     }));
-  }, [lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary, data]);
+  }, [lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary]);
 
   // Fetch initial POIs on mount
   useEffect(() => {
@@ -269,20 +271,18 @@ function App() {
 
         {/* Tabs moved to Navbar */}
         <div className="flex items-center h-full gap-2">
-          <TabButton active={activeTab === 'live'} onClick={() => handleTabChange('live')} icon={<Activity size={18} />} label="Live Dashboard" />
+          <TabButton active={activeTab === 'live'} onClick={() => handleTabChange('live')} icon={<Activity size={18} />} label="Prediction Setup" />
+          <div className="relative">
+            <TabButton active={activeTab === 'alerts'} onClick={() => handleTabChange('alerts')} icon={<Bell size={18} />} label="Live Traffic" />
+            {hasActiveAnomalies && (
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--color-surface)] animate-pulse" />
+            )}
+          </div>
           <TabButton active={activeTab === 'tactical'} onClick={() => handleTabChange('tactical')} icon={<ListChecks size={18} />} label="Tactical Plan" />
           <TabButton active={activeTab === 'signals'} onClick={() => handleTabChange('signals')} icon={<Radio size={18} />} label="Signals" />
           <TabButton active={activeTab === 'dispersal'} onClick={() => handleTabChange('dispersal')} icon={<Route size={18} />} label="Crowd Dispersal" />
           <TabButton active={activeTab === 'autopsy'} onClick={() => handleTabChange('autopsy')} icon={<FileSearch size={18} />} label="Causal Autopsy" />
           <div className="flex-grow"></div>
-          <div className="flex items-center gap-2 pr-2">
-            <div className="relative">
-              <TabButton active={activeTab === 'alerts'} onClick={() => handleTabChange('alerts')} icon={<Bell size={18} />} label="Live Alerts" />
-              {hasActiveAnomalies && (
-                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--color-surface)] animate-pulse" />
-              )}
-            </div>
-          </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -300,7 +300,7 @@ function App() {
           <div style={{ display: activeTab === 'live' ? 'block' : 'none' }}>
             {visitedTabs.includes('live') && (
               <LiveDashboard
-                data={data} loading={loading} setData={setData}
+                data={activeAnalysisSource === 'prediction_setup' ? data : null} loading={loading} setData={setData}
                 eventType={eventType} setEventType={setEventType}
                 duration={duration} setDuration={setDuration}
                 rain={rain} setRain={setRain}
@@ -361,7 +361,15 @@ function App() {
           {/* Alerts Tab */}
           <div style={{ display: activeTab === 'alerts' ? 'block' : 'none' }}>
             {visitedTabs.includes('alerts') && (
-              <AlertsTab anomalies={anomalies} setAnomalies={setAnomalies} />
+              <AlertsTab 
+                anomalies={anomalies} setAnomalies={setAnomalies} 
+                setGlobalData={setData}
+                setGlobalLat={setLat}
+                setGlobalLng={setLng}
+                setGlobalEventType={setEventType}
+                setActiveAnalysisSource={setActiveAnalysisSource}
+                handleTabChange={handleTabChange}
+              />
             )}
           </div>
 

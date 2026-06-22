@@ -40,6 +40,18 @@ function MapClickHandler({ setLocation, setLocationName, setTargetBoundary }) {
   return null;
 }
 
+function MapSizeInvalidator() {
+  const map = useMap();
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
+
 function MapAutoZoom({ lat, lng, predictionData }) {
   const map = useMap();
   useEffect(() => {
@@ -57,6 +69,80 @@ const BENGALURU_BOUNDS = [
   [13.3, 77.8]  // NorthEast corner
 ];
 
+// Canvas-based tile layer that removes green (free-flow) traffic pixels
+function FilteredTrafficLayer() {
+  const map = useMap();
+  const layerRef = useRef(null);
+
+  useEffect(() => {
+    const tileUrl = 'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=ORWaElJompOORRkCLxk13gC3ZHZaKsWN&thickness=2';
+
+    const layer = L.GridLayer.extend({
+      createTile: function(coords, done) {
+        const tile = document.createElement('canvas');
+        const size = this.getTileSize();
+        tile.width = size.x;
+        tile.height = size.y;
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = tileUrl
+          .replace('{z}', coords.z)
+          .replace('{x}', coords.x)
+          .replace('{y}', coords.y);
+
+        img.onload = function() {
+          const ctx = tile.getContext('2d');
+          ctx.drawImage(img, 0, 0, size.x, size.y);
+
+          try {
+            const imageData = ctx.getImageData(0, 0, size.x, size.y);
+            const d = imageData.data;
+
+            for (let i = 0; i < d.length; i += 4) {
+              const r = d[i], g = d[i+1], b = d[i+2], a = d[i+3];
+              if (a === 0) continue; // skip transparent pixels
+
+              // Remove green-dominant pixels (free-flow traffic)
+              // Green pixels: high G, low R and B
+              if (g > 80 && g > r * 1.3 && g > b * 1.3) {
+                d[i+3] = 0; // make transparent
+              }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+          } catch(e) {
+            // CORS error fallback — just show unfiltered tile
+          }
+          done(null, tile);
+        };
+
+        img.onerror = function() {
+          done(null, tile);
+        };
+
+        return tile;
+      }
+    });
+
+    const gridLayer = new layer({
+      opacity: 0.85,
+      bounds: L.latLngBounds(BENGALURU_BOUNDS),
+      attribution: '&copy; TomTom Traffic'
+    });
+
+    map.addLayer(gridLayer);
+    layerRef.current = gridLayer;
+
+    return () => {
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current);
+      }
+    };
+  }, [map]);
+
+  return null;
+}
 
 function DynamicRoads({ roads, overlayVisibility, roadZoom, setRoadZoom }) {
   const map = useMap();
@@ -320,6 +406,7 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
       maxBounds={BENGALURU_BOUNDS}
       minZoom={10}
     >
+      <MapSizeInvalidator />
       {/* Controller to handle focus events using the map instance */}
       <OverlayController overlayItemsRef={overlayItemsRef} />
       <ZoomControl position="bottomright" />
@@ -328,70 +415,69 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
         attribution='&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
       />
       {isLiveTrafficMode && (
-        <TileLayer
-          url="https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=ORWaElJompOORRkCLxk13gC3ZHZaKsWN"
-          attribution='&copy; TomTom Traffic'
-          opacity={0.8}
-          bounds={BENGALURU_BOUNDS}
-        />
+        <FilteredTrafficLayer />
       )}
       <MapAutoZoom lat={lat} lng={lng} predictionData={predictionData} />
       {renderCommonElements()}
 
-      <Circle
-        center={[lat, lng]}
-        radius={radius}
-        pathOptions={{ color: '#ff4b2b', fillColor: '#ff4b2b', fillOpacity: 0.1, weight: 2 }}
-      >
-        <LeafletTooltip>Impact Zone</LeafletTooltip>
-      </Circle>
+      {!isLiveTrafficMode && (
+        <>
+          <Circle
+            center={[lat, lng]}
+            radius={radius}
+            pathOptions={{ color: '#ff4b2b', fillColor: '#ff4b2b', fillOpacity: 0.1, weight: 2 }}
+          >
+            <LeafletTooltip>Impact Zone</LeafletTooltip>
+          </Circle>
 
-      <Circle
-        center={[lat, lng]}
-        radius={radius * 1.5}
-        pathOptions={{ color: '#00d2ff', fillColor: 'transparent', weight: 2, dashArray: '5, 10' }}
-      >
-        <LeafletTooltip>Spillover Zone</LeafletTooltip>
-      </Circle>
+          <Circle
+            center={[lat, lng]}
+            radius={radius * 1.5}
+            pathOptions={{ color: '#00d2ff', fillColor: 'transparent', weight: 2, dashArray: '5, 10' }}
+          >
+            <LeafletTooltip>Spillover Zone</LeafletTooltip>
+          </Circle>
 
-      <DynamicRoads roads={criticalRoads} overlayVisibility={overlayVisibility} roadZoom={roadZoom} setRoadZoom={setRoadZoom} />
+          <DynamicRoads roads={criticalRoads} overlayVisibility={overlayVisibility} roadZoom={roadZoom} setRoadZoom={setRoadZoom} />
 
-      {(() => {
-        let hospIdx = 0;
-        const greenShades = ['#00e676', '#b2ff59', '#64dd17'];
-        return emergencyRoutes?.map((route, idx) => {
-          if (route.type && route.type !== 'hospital') return null;
-          
-          const destination = route.detour_path && route.detour_path.length > 0 ? route.detour_path[route.detour_path.length - 1] : null;
-          const showDetour = overlayVisibility ? (overlayVisibility[`em-detour-${idx}`] ?? true) : true;
-          const color = greenShades[hospIdx % greenShades.length];
-          hospIdx++;
+          {(() => {
+            let hospIdx = 0;
+            const greenShades = ['#00e676', '#b2ff59', '#64dd17'];
+            return emergencyRoutes?.map((route, idx) => {
+              if (route.type && route.type !== 'hospital') return null;
+              
+              const destination = route.detour_path && route.detour_path.length > 0 ? route.detour_path[route.detour_path.length - 1] : null;
+              const showDetour = overlayVisibility ? (overlayVisibility[`em-detour-${idx}`] ?? true) : true;
+              const color = greenShades[hospIdx % greenShades.length];
+              hospIdx++;
 
-          return (
-            <React.Fragment key={`emergency-${idx}`}>
-              {showDetour && (
-                <Polyline
-                  positions={route.detour_path}
-                  pathOptions={{ color: color, weight: 3.5, opacity: 0.9 }}
-                >
-                  <LeafletTooltip>Emergency Route ({route.name})</LeafletTooltip>
-                </Polyline>
-              )}
-            {destination && (
-              <CircleMarker 
-                center={destination} 
-                radius={6}
-                pathOptions={{ color: '#111', fillColor: color, fillOpacity: 1, weight: 2 }}
-              >
-                <LeafletTooltip direction="top" permanent={false} opacity={1} className="font-bold">
-                  🏥 {route.name}
-                </LeafletTooltip>
-              </CircleMarker>
-            )}
-          </React.Fragment>
-        );
-      });
-      })()}
+              return (
+                <React.Fragment key={`emergency-${idx}`}>
+                  {showDetour && (
+                    <Polyline
+                      positions={route.detour_path}
+                      pathOptions={{ color: color, weight: 3.5, opacity: 0.9 }}
+                    >
+                      <LeafletTooltip>Emergency Route ({route.name})</LeafletTooltip>
+                    </Polyline>
+                  )}
+                {destination && (
+                  <CircleMarker 
+                    center={destination} 
+                    radius={6}
+                    pathOptions={{ color: '#111', fillColor: color, fillOpacity: 1, weight: 2 }}
+                  >
+                    <LeafletTooltip direction="top" permanent={false} opacity={1} className="font-bold">
+                      🏥 {route.name}
+                    </LeafletTooltip>
+                  </CircleMarker>
+                )}
+              </React.Fragment>
+            );
+          });
+          })()}
+        </>
+      )}
 
       {/* Render external traffic from TomTom */}
       {externalTraffic?.flow && Array.isArray(externalTraffic.flow) ? (

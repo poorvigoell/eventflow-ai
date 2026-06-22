@@ -59,11 +59,12 @@ export function LiveDashboard({
   targetBoundary, setTargetBoundary,
   analyzeEvent,
   isFullscreen, setIsFullscreen,
-  initialMapData
+  initialMapData,
+  anomalies = [],
+  activeTab
 }) {
   const [showBaseline, setShowBaseline] = useState(false);
   const [tomtomError, setTomtomError] = useState('');
-  const [isLiveTrafficMode, setIsLiveTrafficMode] = useState(false);
 
   // AI Operator States
   const [mode, setMode] = useState('manual');
@@ -178,8 +179,8 @@ export function LiveDashboard({
         } else {
           setTomtomError(payload.message || 'TomTom fallback active');
         }
-      } catch (err) { 
-        console.error('TomTom fetch error', err); 
+      } catch (err) {
+        console.error('TomTom fetch error', err);
         setTomtomError('Unable to contact TomTom service.');
       }
     };
@@ -243,145 +244,135 @@ export function LiveDashboard({
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <Navigation className="text-[var(--color-accent)]" size={18} />
-              <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Tracking Setup</h2>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Prediction Setup</h2>
             </div>
-            <label className="flex items-center gap-2 bg-[var(--color-base)] border border-[var(--color-accent)] px-3 py-1 rounded-full cursor-pointer hover:bg-[var(--color-surface)] transition-colors shadow-[0_0_10px_rgba(0,230,118,0.1)]">
-              <span className="text-[10px] font-bold text-[var(--color-text-main)] uppercase tracking-widest">Live Traffic</span>
-              <div className="relative inline-flex items-center">
-                <input type="checkbox" className="sr-only peer" checked={isLiveTrafficMode} onChange={(e) => setIsLiveTrafficMode(e.target.checked)} />
-                <div className="w-7 h-4 bg-[var(--color-surface)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[var(--color-accent)] shadow-inner"></div>
-              </div>
-            </label>
           </div>
-          
-          {!isLiveTrafficMode && (
-            <div className="flex bg-[var(--color-base)] p-1 rounded-lg">
-              <button
-                onClick={() => setMode('manual')}
-                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${mode === 'manual' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-main)] shadow' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]'}`}
-              >
-                Manual Mode
-              </button>
-              <button
-                onClick={() => setMode('ai')}
-                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors flex items-center gap-1.5 ${mode === 'ai' ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] shadow border border-[var(--color-accent)]/30' : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)]'}`}
-              >
-                <Bot size={14} /> Smart Predict
-              </button>
-            </div>
-          )}
+
+          <div className="flex bg-[var(--color-base)] p-1 rounded-lg">
+            <button
+              onClick={() => setMode('manual')}
+              className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${mode === 'manual' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-main)] shadow' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]'}`}
+            >
+              Manual Mode
+            </button>
+            <button
+              onClick={() => setMode('ai')}
+              className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors flex items-center gap-1.5 ${mode === 'ai' ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] shadow border border-[var(--color-accent)]/30' : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)]'}`}
+            >
+              <Bot size={14} /> Smart Predict
+            </button>
+          </div>
         </div>
 
-        {!isLiveTrafficMode && (
-          mode === 'manual' ? (
-          <div className="grid grid-cols-1 xl:grid-cols-7 gap-4 items-center">
-            <div className="flex flex-col h-full justify-center">
-              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Event Category</label>
-              <CustomSelect value={eventType} onChange={setEventType} options={eventOptions} />
-            </div>
+        {mode === 'manual' ? (
+            <div className="grid grid-cols-1 xl:grid-cols-7 gap-4 items-center">
+              <div className="flex flex-col h-full justify-center">
+                <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Event Category</label>
+                <CustomSelect value={eventType} onChange={setEventType} options={eventOptions} />
+              </div>
 
-            <div className="flex flex-col h-full justify-center">
-              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Start Time</label>
-              <input
-                type="datetime-local"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                style={{ colorScheme: 'dark' }}
-                className="w-full bg-[var(--color-base)] border border-[var(--color-border)] rounded-lg p-2.5 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
-              />
-            </div>
+              <div className="flex flex-col h-full justify-center">
+                <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Start Time</label>
+                <input
+                  type="datetime-local"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  style={{ colorScheme: 'dark' }}
+                  className="w-full bg-[var(--color-base)] border border-[var(--color-border)] rounded-lg p-2.5 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors"
+                />
+              </div>
 
-            <div className="flex flex-col h-full justify-center">
-              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide flex justify-between">
-                <span>Duration</span>
-                <span className="text-[var(--color-accent)]">{duration} Hours</span>
-              </label>
-              <input
-                type="range"
-                min="1" max="12" step="0.5"
-                value={duration}
-                onChange={(e) => setDuration(parseFloat(e.target.value))}
-                style={{ accentColor: 'var(--color-accent)' }}
-                className="w-full h-2 bg-[var(--color-base)] rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-
-            <div className="flex flex-col h-full justify-center">
-              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-2 uppercase tracking-wide">Modifiers</label>
-              <div className="flex flex-col gap-2">
-                <label className="flex items-center gap-2.5 cursor-pointer group">
-                  <input type="checkbox" checked={rain} onChange={e => setRain(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
-                  <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Rain</span>
+              <div className="flex flex-col h-full justify-center">
+                <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide flex justify-between">
+                  <span>Duration</span>
+                  <span className="text-[var(--color-accent)]">{duration} Hours</span>
                 </label>
-                <label className="flex items-center gap-2.5 cursor-pointer group">
-                  <input type="checkbox" checked={emergency} onChange={e => setEmergency(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
-                  <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Emergency</span>
-                </label>
-                <label className="flex items-center gap-2.5 cursor-pointer group">
+                <input
+                  type="range"
+                  min="1" max="12" step="0.5"
+                  value={duration}
+                  onChange={(e) => setDuration(parseFloat(e.target.value))}
+                  style={{ accentColor: 'var(--color-accent)' }}
+                  className="w-full h-2 bg-[var(--color-base)] rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+
+              <div className="flex flex-col h-full justify-center">
+                <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-2 uppercase tracking-wide">Modifiers</label>
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input type="checkbox" checked={rain} onChange={e => setRain(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
+                    <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Rain</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer group">
+                    <input type="checkbox" checked={emergency} onChange={e => setEmergency(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
+                    <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Emergency</span>
+                  </label>
+                  {/* <label className="flex items-center gap-2.5 cursor-pointer group">
                   <input type="checkbox" checked={multiEvent} onChange={e => setMultiEvent(e.target.checked)} style={{ accentColor: 'var(--color-accent)' }} className="w-4 h-4 cursor-pointer" />
                   <span className="text-sm font-medium group-hover:text-[var(--color-text-main)] text-[var(--color-text-muted)] transition-colors whitespace-nowrap">Multi-Event</span>
-                </label>
+                </label> */}
+                </div>
+              </div>
+
+              <div className="flex flex-col h-full justify-center min-w-0 xl:col-span-2">
+                <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Location (Search or Click Map)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={locationName === 'Click a spot on the map' ? '' : locationName}
+                    onChange={(e) => setLocationName(e.target.value)}
+                    onKeyDown={handleSearch}
+                    className="w-full bg-[var(--color-base)] border border-[var(--color-border)] rounded-lg p-2.5 pl-8 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors truncate"
+                  />
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                </div>
+              </div>
+
+              <div className="flex flex-col h-full justify-center">
+                <button
+                  onClick={() => {
+                    console.log('Launch Prediction clicked');
+                    analyzeEvent();
+                  }}
+                  disabled={loading}
+                  type="button"
+                  style={{ pointerEvents: 'auto' }}
+                  className="w-full h-[42px] bg-[var(--color-accent)] hover:bg-[#00c853] active:opacity-75 text-[#050505] font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                >
+                  {loading && <Loader2 size={14} className="animate-spin" />}
+                  {loading ? "Simulating..." : "Launch Prediction"}
+                </button>
               </div>
             </div>
-
-            <div className="flex flex-col h-full justify-center min-w-0 xl:col-span-2">
-              <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Location (Search or Click Map)</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={locationName === 'Click a spot on the map' ? '' : locationName}
-                  onChange={(e) => setLocationName(e.target.value)}
-                  onKeyDown={handleSearch}
-                  className="w-full bg-[var(--color-base)] border border-[var(--color-border)] rounded-lg p-2.5 pl-8 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors truncate"
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="flex gap-3">
+                <textarea
+                  value={aiCommand}
+                  onChange={(e) => setAiCommand(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleAiSubmit();
+                    }
+                  }}
+                  placeholder="e.g., There's a massive protest breaking out at Cubbon Park, redirect traffic..."
+                  className="flex-1 bg-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-4 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors min-h-[60px] resize-none"
+                  disabled={isAiProcessing}
                 />
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                <button
+                  onClick={handleAiSubmit}
+                  disabled={isAiProcessing || !aiCommand.trim()}
+                  className="w-[120px] bg-[var(--color-accent)] hover:bg-[#00c853] active:opacity-75 text-[#050505] font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex flex-col items-center justify-center gap-1 shrink-0"
+                >
+                  {isAiProcessing && <Loader2 size={18} className="animate-spin" />}
+                  {isAiProcessing ? "Processing..." : "launch Prediction"}
+                </button>
               </div>
             </div>
-
-            <div className="flex flex-col h-full justify-center">
-              <button
-                onClick={() => {
-                  console.log('Launch Prediction clicked');
-                  analyzeEvent();
-                }}
-                disabled={loading}
-                type="button"
-                style={{ pointerEvents: 'auto' }}
-                className="w-full h-[42px] bg-[var(--color-accent)] hover:bg-[#00c853] active:opacity-75 text-[#050505] font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex items-center justify-center gap-2"
-              >
-                {loading && <Loader2 size={14} className="animate-spin" />}
-                {loading ? "Simulating..." : "Launch Prediction"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <div className="flex gap-3">
-              <textarea
-                value={aiCommand}
-                onChange={(e) => setAiCommand(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleAiSubmit();
-                  }
-                }}
-                placeholder="e.g., There's a massive protest breaking out at Cubbon Park, redirect traffic..."
-                className="flex-1 bg-[var(--color-base)] border border-[var(--color-border)] rounded-xl p-4 text-sm text-[var(--color-text-main)] focus:outline-none focus:border-[var(--color-accent)] transition-colors min-h-[60px] resize-none"
-                disabled={isAiProcessing}
-              />
-              <button
-                onClick={handleAiSubmit}
-                disabled={isAiProcessing || !aiCommand.trim()}
-                className="w-[120px] bg-[var(--color-accent)] hover:bg-[#00c853] active:opacity-75 text-[#050505] font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs uppercase tracking-wider flex flex-col items-center justify-center gap-1 shrink-0"
-              >
-                {isAiProcessing && <Loader2 size={18} className="animate-spin" />}
-                {isAiProcessing ? "Processing..." : "launch Prediction"}
-              </button>
-            </div>
-          </div>
-        ))}
+          )}
       </div>
 
       {/* 2. Map (Fixed/Fullscreen Height) */}
@@ -418,7 +409,7 @@ export function LiveDashboard({
           </div>
         </div>
         {tomtomError && (
-          <div 
+          <div
             onClick={() => setTomtomError('')}
             className="absolute left-1/2 -translate-x-1/2 top-20 z-[99999] cursor-pointer w-auto min-w-[300px] max-w-lg rounded-xl border border-amber-500 bg-amber-500/10 backdrop-blur-md text-amber-500 px-6 py-3 text-sm font-bold shadow-2xl text-center flex items-center justify-center gap-2"
           >
@@ -432,7 +423,6 @@ export function LiveDashboard({
             lat={lat}
             lng={lng}
             showPin={showPin}
-            isLiveTrafficMode={isLiveTrafficMode}
             setLocation={(loc) => { setLat(loc.lat); setLng(loc.lng); setShowPin(true); if (setData) setData(null); }}
             locationName={locationName}
             setLocationName={(name) => { setLocationName(name); setShowPin(true); }}
@@ -448,8 +438,7 @@ export function LiveDashboard({
           <Legend />
         </div>
       </div>
-
-      {/* 3. Bottom Section: Live Analytics */}
+      {/* 3. Bottom Section: Live Analytics / Live Alerts */}
       {!isFullscreen && (
         <div className="w-full z-10 shrink-0">
           {loading ? (
@@ -459,7 +448,7 @@ export function LiveDashboard({
               <p className="text-sm text-[var(--color-text-muted)] mt-1">Calculating risk probabilities and timeline.</p>
             </div>
           ) : (data && data.prediction) ? (
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-6 animate-fade-in">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Timeline Chart */}
                 <div className="lg:col-span-1 h-full bg-gradient-to-br from-[var(--color-surface)] to-[var(--color-base)] border border-[var(--color-border)] p-5 rounded-xl shadow-2xl flex flex-col min-w-0 relative overflow-hidden group">
