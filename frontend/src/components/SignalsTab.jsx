@@ -295,7 +295,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             {marlStatus.model_exists && (
               <button 
                 onClick={() => setMode('marl')}
-                className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${mode === 'marl' ? 'bg-purple-500 text-white shadow-md shadow-purple-500/30' : 'text-[var(--color-text-muted)]'}`}
+                className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${mode === 'marl' ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
               >
                 <Network size={16} /> MARL Cooperative
               </button>
@@ -495,9 +495,9 @@ export const SignalsTab = ({ signals, eventConfig }) => {
       ) : (
         // --- MARL COOPERATIVE MODE ---
         <div className="space-y-6 animate-fade-in">
-          <div className="bg-[var(--color-surface-hover)] border-l-4 border-purple-500 p-4 rounded-lg shadow-xl flex justify-between items-center">
+          <div className="bg-[var(--color-surface-hover)] border-l-4 border-[var(--color-accent)] p-4 rounded-lg shadow-xl flex justify-between items-center">
             <div>
-              <h5 className="text-purple-400 font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
+              <h5 className="text-[var(--color-accent)] font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
                 <Network size={14}/> MARL Cooperative Network
               </h5>
               <p className="text-sm text-[var(--color-text-main)]">5 independent AI agents coordinate signal timing through learned message-passing over the road network.</p>
@@ -507,7 +507,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
               <button 
                 onClick={startMARLSession}
                 disabled={isStartingMARL}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-purple-500/30 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-[var(--color-accent)] hover:opacity-80 text-black px-6 py-2 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isStartingMARL ? <Loader2 size={16} className="animate-spin" /> : <Network size={16}/>}
                 {isStartingMARL ? "Deploying Agents..." : "Deploy MARL Network"}
@@ -516,11 +516,11 @@ export const SignalsTab = ({ signals, eventConfig }) => {
               <div className="flex items-center gap-4">
                 <div className="text-right">
                   <div className="text-xs text-[var(--color-text-muted)]">COOPERATIVE STEP</div>
-                  <div className="text-2xl font-mono text-purple-400 font-bold">{marlSession.step} / 120</div>
+                  <div className="text-2xl font-mono text-[var(--color-accent)] font-bold">{marlSession.step} / 120</div>
                 </div>
                 <button 
                   onClick={() => setIsMarlStepping(!isMarlStepping)}
-                  className={`px-6 py-2 rounded-lg font-bold shadow-lg transition-all ${isMarlStepping ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-purple-500 text-white hover:bg-purple-600 shadow-purple-500/30'}`}
+                  className={`px-6 py-2 rounded-lg font-bold shadow-lg transition-all ${isMarlStepping ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-[var(--color-accent)] text-black hover:opacity-80'}`}
                 >
                   {isMarlStepping ? 'PAUSE' : 'RESUME'}
                 </button>
@@ -534,9 +534,9 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                 {/* Agent Network Graph */}
                 <Card className="bg-[var(--color-surface)] flex flex-col lg:flex-[2] min-h-[400px] lg:h-[600px]">
                   <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider m-0">Agent Communication Network</h3>
+                    <h3 className="text-sm font-bold text-[var(--color-accent)] uppercase tracking-wider m-0">Agent Communication Network</h3>
                     <div className="group relative flex items-center">
-                      <Info size={16} className="text-purple-400 cursor-help" />
+                      <Info size={16} className="text-[var(--color-accent)] cursor-help" />
                       <div className="absolute top-full mt-2 left-0 w-72 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
                         Each node is an independent AI agent controlling a traffic light. Dashed lines show communication links. Green pulses = coordination signals. Red pulses = congestion warnings. Ring around each node shows queue pressure.
                       </div>
@@ -628,7 +628,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                           labelStyle={{ color: 'var(--color-text-muted)' }}
                         />
                         <Line type="monotone" dataKey="crowd" name="Crowd %" stroke="var(--color-accent)" strokeWidth={3} dot={false} isAnimationActive={false} />
-                        <Line type="monotone" dataKey="total_reward" name="Global Reward" stroke="#8338ec" strokeWidth={2} dot={false} isAnimationActive={false} strokeDasharray="5 5" />
+                        <Line type="monotone" dataKey="total_reward" name="Global Reward" stroke="#00c853" strokeWidth={2} dot={false} isAnimationActive={false} strokeDasharray="5 5" />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>

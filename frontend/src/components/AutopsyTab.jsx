@@ -91,7 +91,7 @@ export function AutopsyTab() {
     <div className="max-w-4xl mx-auto space-y-6 pb-20">
       <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
         <h2 className="text-2xl font-bold flex items-center gap-2">
-          <FileSearch className="text-[#00d2ff]" size={28} /> Post-Event Causal Autopsy
+          <FileSearch className="text-[var(--color-accent)]" size={28} /> Post-Event Causal Autopsy
         </h2>
         <div className="text-xs bg-[var(--color-surface)] px-3 py-1.5 rounded-full border border-[var(--color-border)] text-[var(--color-text-muted)] flex items-center gap-2">
           <GitCommit size={14} className="text-[var(--color-accent)]" /> Causal Meta-Learner Active

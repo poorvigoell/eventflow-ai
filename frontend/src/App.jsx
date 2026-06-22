@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { SignalsTab } from './components/SignalsTab'
 import { DispersalTab } from './components/DispersalTab'
@@ -11,6 +11,40 @@ import { Activity, ListChecks, Radio, Route, Cpu, AlertTriangle, Bell, FileSearc
 
 import { LiveDashboard } from './components/LiveDashboard'
 import { TacticalPlan } from './components/TacticalPlan'
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("React Render Error Caught:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-screen bg-[#0A0A0A] text-red-500 p-8 text-center font-mono">
+          <AlertTriangle size={64} className="mb-6" />
+          <h1 className="text-3xl font-bold mb-4 text-white">Oops! The application crashed.</h1>
+          <p className="text-gray-400 mb-8 max-w-2xl">A rendering error occurred in one of the components. The error has been caught to prevent a completely blank screen.</p>
+          <div className="bg-red-900/20 border border-red-500/50 p-4 rounded text-left max-w-4xl overflow-auto text-sm">
+            <code>{this.state.error?.toString()}</code>
+          </div>
+          <button onClick={() => window.location.reload()} className="mt-8 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors">
+            Reload Application
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const EmptyState = ({ tabName, onGoLive }) => (
   <div className="flex flex-col items-center justify-center h-[500px] text-[var(--color-text-muted)] bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl max-w-4xl mx-auto mt-10 shadow-2xl">
@@ -279,7 +313,6 @@ function App() {
                 locationName={locationName} setLocationName={setLocationName}
                 targetBoundary={targetBoundary} setTargetBoundary={setTargetBoundary}
                 analyzeEvent={analyzeEvent}
-                setData={setData}
                 isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen}
                 initialMapData={initialMapData}
               />
@@ -347,4 +380,10 @@ function App() {
   )
 }
 
-export default App
+export default function AppWrapper() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}

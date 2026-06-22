@@ -35,14 +35,28 @@ Make sure you have Node.js and **Python 3.11 or 3.12** installed.
 > Do NOT use Python 3.13. The Reinforcement Learning libraries (`stable-baselines3`, `PyTorch`) currently do not have pre-built wheels for Python 3.13 and will fail to install.
 
 ### 1. Automated Backend Setup (Recommended)
-To prevent "Pickle" mismatch errors and guarantee Python version compatibility, the easiest way to start is using our automated setup script. This script will create a virtual environment, install the ML libraries, and re-train the predictive models natively so they perfectly match your computer's environment.
+To prevent "Pickle" mismatch errors and guarantee Python version compatibility, the easiest way to start is using our automated setup script. This script will automatically create a virtual environment, install the ML libraries, dynamically generate the randomized CSV dataset, and re-train the predictive models natively so they perfectly match your computer's environment.
 
-1. Navigate to the root directory.
+**If you are on Windows:**
+1. Open your terminal or Command Prompt and navigate to the root directory.
+2. Run the automated setup script:
+   ```cmd
+   .\setup.bat
+   ```
+3. Once complete, start the backend server from Command Prompt:
+   ```cmd
+   call .venv\Scripts\activate.bat
+   set OMP_NUM_THREADS=1
+   python -m uvicorn api.main:app --reload --port 8000
+   ```
+
+**If you are on Mac/Linux:**
+1. Open your terminal and navigate to the root directory.
 2. Run the automated setup script:
    ```bash
-   ./setup.sh
+   bash setup.sh
    ```
-3. Once complete, start the backend server from inside the virtual environment:
+3. Once complete, start the backend server:
    ```bash
    source .venv/bin/activate
    OMP_NUM_THREADS=1 python -m uvicorn api.main:app --reload --port 8000
