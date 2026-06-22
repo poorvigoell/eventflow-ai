@@ -1,3 +1,5 @@
+# WARNING: You MUST use Python 3.11 or 3.12 to install these requirements.
+# PyTorch and stable-baselines3 do not currently support Python 3.13.
 streamlit>=1.32.0
 osmnx>=1.9.1
 networkx>=3.2.1
@@ -10,11 +12,15 @@ scikit-learn>=1.4.1
 plotly>=5.19.0
 fpdf2>=2.7.8
 numpy<2.0.0
-# stable-baselines3>=2.3.0
-# gymnasium>=0.29.1
-# torch>=2.2.0
-# shimmy>=1.3.0
-fastapi>=0.136.0
+stable-baselines3>=2.3.0
+gymnasium>=0.29.1
+torch>=2.2.0
+shimmy>=1.3.0
+# IMPORTANT: This project requires Python 3.11 or 3.12!
+# Python 3.13 is NOT supported by stable-baselines3 and PyTorch yet.
+# We highly recommend running `./setup.sh` to auto-configure your environment.
+
+fastapi>=0.109.20
 uvicorn>=0.44.0
 pydantic>=2.13.2
 # tensorboard>=2.20.0

@@ -12,21 +12,21 @@ export function TacticalPlan({ data }) {
 
       {/* Primary Responders */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        <MetricBox title="Police Personnel" value={data.tactical.manpower.traffic_police} emoji="👮" infoText={<span><strong>Formula:</strong> max(4, 2 + (Junctions × 3) + (Incidents × 0.25))</span>} />
-        <MetricBox title="Patrol Vehicles" value={data.tactical.manpower.patrol_vehicles} emoji="🚓" infoText={<span><strong>Formula:</strong> max(1, 1 + (Junctions × 0.4) + (Incidents × 0.05))</span>} />
+        <MetricBox title="Police Personnel" value={data.tactical.manpower.traffic_police} infoText={<span><strong>Formula:</strong> max(4, 2 + (Junctions × 3) + (Incidents × 0.25))</span>} />
+        <MetricBox title="Patrol Vehicles" value={data.tactical.manpower.patrol_vehicles} infoText={<span><strong>Formula:</strong> max(1, 1 + (Junctions × 0.4) + (Incidents × 0.05))</span>} />
       </div>
 
       {/* Support & Logistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <MetricBox title="Ambulance" value={data.tactical.manpower.ambulances} emoji="🚑" infoText={<span><strong>Formula:</strong> max(1, round(Incidents × 0.12))</span>} />
-        <MetricBox title="Tow Trucks" value={data.tactical.manpower.tow_trucks} emoji="🚜" infoText={<span><strong>Formula:</strong> max(0, round(Incidents × 0.07))</span>} />
-        <MetricBox title="Barricades" value={data.tactical.manpower.barricade_teams} emoji="🚧" infoText={<span><strong>Formula:</strong> max(1, Critical Junctions)</span>} />
+        <MetricBox title="Ambulance" value={data.tactical.manpower.ambulances} infoText={<span><strong>Formula:</strong> max(1, round(Incidents × 0.12))</span>} />
+        <MetricBox title="Tow Trucks" value={data.tactical.manpower.tow_trucks} infoText={<span><strong>Formula:</strong> max(0, round(Incidents × 0.07))</span>} />
+        <MetricBox title="Barricades" value={data.tactical.manpower.barricade_teams} infoText={<span><strong>Formula:</strong> max(1, Critical Junctions)</span>} />
       </div>
 
       <div className="grid grid-cols-2 gap-6 mt-8">
         <Card className="overflow-visible">
           <div className="flex items-center gap-2 mb-4">
-            <h3 className="text-lg font-bold text-[var(--color-accent)] m-0">🚧 Active Barricade Protocol</h3>
+            <h3 className="text-lg font-bold text-[var(--color-accent)] m-0">Active Barricade Protocol</h3>
             <div className="group relative flex items-center ml-2 z-50">
               <div className="flex items-center justify-center transition duration-200 hover:scale-110">
                 <Info size={16} className="text-[var(--color-accent)] cursor-help" />
@@ -59,7 +59,7 @@ export function TacticalPlan({ data }) {
 
         <Card className="overflow-visible">
           <div className="flex items-center gap-2 mb-4">
-            <h3 className="text-lg font-bold text-[var(--color-accent)] m-0">🧭 Routing & Diversion Protocol</h3>
+            <h3 className="text-lg font-bold text-[var(--color-accent)] m-0">Routing & Diversion Protocol</h3>
             <div className="group relative flex items-center ml-2 z-50">
               <div className="flex items-center justify-center transition duration-200 hover:scale-110">
                 <Info size={16} className="text-[var(--color-accent)] cursor-help" />

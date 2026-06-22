@@ -30,20 +30,24 @@ EventFlow is an advanced,  traffic prediction and simulation dashboard designed 
 ## Getting Started
 
 ### Prerequisites
-Make sure you have Node.js and Python 3.9+ installed.
+Make sure you have Node.js and **Python 3.11 or 3.12** installed. 
+> [!WARNING]
+> Do NOT use Python 3.13. The Reinforcement Learning libraries (`stable-baselines3`, `PyTorch`) currently do not have pre-built wheels for Python 3.13 and will fail to install.
 
-### 1. Backend Setup
+### 1. Automated Backend Setup (Recommended)
+To prevent "Pickle" mismatch errors and guarantee Python version compatibility, the easiest way to start is using our automated setup script. This script will create a virtual environment, install the ML libraries, and re-train the predictive models natively so they perfectly match your computer's environment.
+
 1. Navigate to the root directory.
-2. Create and activate a virtual environment (optional but recommended).
-3. Install the required Python packages:
+2. Run the automated setup script:
    ```bash
-   pip install -r requirements.txt
+   ./setup.sh
    ```
-4. Start the FastAPI backend server:
+3. Once complete, start the backend server from inside the virtual environment:
    ```bash
+   source .venv/bin/activate
    OMP_NUM_THREADS=1 python -m uvicorn api.main:app --reload --port 8000
    ```
-   *(Note: `OMP_NUM_THREADS=1` is required to prevent PyTorch deadlocks on macOS when spinning up inside FastAPI).*
+   *(Note: `OMP_NUM_THREADS=1` is required to prevent PyTorch deadlocks on macOS).*
 
 ### 2. Frontend Setup
 1. Open a new terminal and navigate to the `frontend` directory:

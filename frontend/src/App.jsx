@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import { SignalsTab } from './components/SignalsTab'
 import { DispersalTab } from './components/DispersalTab'
+import { AutopsyTab } from './components/AutopsyTab'
 import { DigitalTwin } from './components/DigitalTwin'
 import { AlertsTab } from './components/AlertsTab'
 import { LandingPage } from './components/LandingPage'
 import { TabButton } from './components/ui/components'
-import { Activity, ListChecks, Radio, Route, Cpu, AlertTriangle, Bell } from 'lucide-react'
+import { Activity, ListChecks, Radio, Route, Cpu, AlertTriangle, Bell, FileSearch } from 'lucide-react'
 
 import { LiveDashboard } from './components/LiveDashboard'
 import { TacticalPlan } from './components/TacticalPlan'
@@ -43,7 +44,7 @@ function App() {
   });
 
   const initialHash = window.location.hash.replace('#', '')
-  const validTabs = ['live', 'tactical', 'signals', 'dispersal', 'twin', 'alerts']
+  const validTabs = ['live', 'tactical', 'signals', 'dispersal', 'twin', 'autopsy', 'alerts']
   const startingTab = validTabs.includes(initialHash) ? initialHash : 'live'
 
   const [showLanding, setShowLanding] = useState(!initialHash)
@@ -239,11 +240,15 @@ function App() {
           <TabButton active={activeTab === 'signals'} onClick={() => handleTabChange('signals')} icon={<Radio size={18} />} label="Signals" />
           <TabButton active={activeTab === 'dispersal'} onClick={() => handleTabChange('dispersal')} icon={<Route size={18} />} label="Crowd Dispersal" />
           <TabButton active={activeTab === 'twin'} onClick={() => handleTabChange('twin')} icon={<Cpu size={18} />} label="Digital Twin" />
-          <div className="relative">
-            <TabButton active={activeTab === 'alerts'} onClick={() => handleTabChange('alerts')} icon={<Bell size={18} />} label="Live Alerts" />
-            {hasActiveAnomalies && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--color-surface)] animate-pulse" />
-            )}
+          <TabButton active={activeTab === 'autopsy'} onClick={() => handleTabChange('autopsy')} icon={<FileSearch size={18} />} label="Causal Autopsy" />
+          <div className="flex-grow"></div>
+          <div className="flex items-center gap-2 pr-2">
+            <div className="relative">
+              <TabButton active={activeTab === 'alerts'} onClick={() => handleTabChange('alerts')} icon={<Bell size={18} />} label="Live Alerts" />
+              {hasActiveAnomalies && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[var(--color-surface)] animate-pulse" />
+              )}
+            </div>
           </div>
         </div>
 
@@ -322,6 +327,11 @@ function App() {
                 />
               )
             )}
+          </div>
+
+          {/* Autopsy Tab */}
+          <div style={{ display: activeTab === 'autopsy' ? 'block' : 'none' }}>
+            <AutopsyTab />
           </div>
 
           {/* Alerts Tab */}

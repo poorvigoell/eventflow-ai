@@ -1,5 +1,19 @@
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border)] p-3 rounded-lg shadow-2xl">
+        <p className="text-[var(--color-text-main)] font-bold mb-1">{label}</p>
+        <p className="text-sm font-bold text-[var(--color-accent)]">+{payload[0].value} incidents</p>
+        <p className="text-[var(--color-text-muted)] text-xs mt-1 uppercase">{data.phase}</p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export const TimelineChart = ({ timelineData }) => {
   if (!timelineData || timelineData.length === 0) return null;
 
@@ -9,20 +23,6 @@ export const TimelineChart = ({ timelineData }) => {
     incidents: item.count,
     phase: item.phase
   }));
-
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] p-3 rounded-lg shadow-2xl">
-          <p className="text-[var(--color-text-main)] font-bold mb-1">{label}</p>
-          <p className="text-sm font-bold text-[var(--color-accent)]">+{payload[0].value} incidents</p>
-          <p className="text-[var(--color-text-muted)] text-xs mt-1 uppercase">{data.phase}</p>
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div className="w-full h-full min-h-[200px] flex flex-col">

@@ -21,9 +21,8 @@ export const SignalsTab = ({ signals, eventConfig }) => {
         if (data.model_exists) setRlStatus(data);
       })
       .catch(err => console.error("RL Status error:", err));
-      
     return () => {
-      stopAutoStep();
+      if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
   
@@ -127,10 +126,10 @@ export const SignalsTab = ({ signals, eventConfig }) => {
     };
   }, [isStepping, rlSession?.id]);
   
-  const stopAutoStep = () => {
+  function stopAutoStep() {
     if (timerRef.current) clearInterval(timerRef.current);
     setIsStepping(false);
-  };
+  }
 
   if (!signals || signals.length === 0) {
     return (
