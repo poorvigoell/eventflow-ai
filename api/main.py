@@ -730,6 +730,144 @@ def end_marl_session(request: MARLActionRequest):
         del marl_sessions[request.session_id]
     return {"status": "success"}
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Unified Adaptive AI Agent Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+class AIStartRequest(BaseModel):
+    latitude: float = 12.9789
+    longitude: float = 77.5998
+    event_type: str = "protest"
+    duration_hours: float = 2.0
+    weather_rain: bool = False
+    total_incidents: int = 0
+    multi_event_mode: bool = False
+
+class AIActionRequest(BaseModel):
+    session_id: str
+
+unified_sessions = {}
+
+@app.get("/api/ai/status")
+def get_ai_status():
+    if not RL_AVAILABLE:
+        return {"model_exists": False, "error": "RL not installed"}
+    # Check if either model exists
+    rl_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "ppo_eventflow.zip")
+    marl_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "ppo_marl_eventflow.zip")
+    exists = os.path.exists(rl_path) or os.path.exists(marl_path)
+    return {
+        "model_exists": exists
+    }
+
+@app.post("/api/ai/start-session")
+def start_ai_session(request: AIStartRequest):
+    # Determine the model based on complexity thresholds
+    use_marl = False
+    if MARL_AVAILABLE and (request.total_incidents > 150 or request.multi_event_mode):
+        model_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "ppo_marl_eventflow.zip")
+        if os.path.exists(model_path):
+            use_marl = True
+            
+    # Delegate to the specific start session handler, then adapt the result
+    if use_marl:
+        marl_req = MARLStartRequest(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            event_type=request.event_type,
+            duration_hours=request.duration_hours,
+            weather_rain=request.weather_rain
+        )
+        res = start_marl_session(marl_req)
+        if "error" in res: return res
+        
+        unified_sessions[res["session_id"]] = {"type": "marl"}
+        res["engine"] = "MARL Cooperative"
+        return res
+    else:
+        rl_req = RLStartRequest(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            event_type=request.event_type,
+            duration_hours=request.duration_hours,
+            weather_rain=request.weather_rain
+        )
+        res = start_rl_session(rl_req)
+        if "error" in res: return res
+        
+        unified_sessions[res["session_id"]] = {"type": "rl"}
+        
+        # Format the Single RL start response to match MARL (returning agents and adjacency)
+        agents_data = []
+        for i, j in enumerate(res["junctions"]):
+            agents_data.append({
+                "id": i,
+                "junction": j["name"],
+                "initial_green_sec": j["initial_green_sec"],
+                "initial_queue": j["initial_queue"],
+                "neighbors": [] # Single RL agents have no neighbors
+            })
+            
+        # Adjacency matrix for Single RL is all 0s
+        num_agents = len(agents_data)
+        adjacency = [[0 for _ in range(num_agents)] for _ in range(num_agents)]
+        
+        return {
+            "session_id": res["session_id"],
+            "agents": agents_data,
+            "adjacency": adjacency,
+            "total_incidents": res["total_incidents"],
+            "engine": "Single RL"
+        }
+
+@app.post("/api/ai/next-action")
+def get_ai_next_action(request: AIActionRequest):
+    session_info = unified_sessions.get(request.session_id)
+    if not session_info:
+        return {"error": "Invalid or expired AI session ID."}
+        
+    if session_info["type"] == "marl":
+        marl_req = MARLActionRequest(session_id=request.session_id)
+        return get_marl_next_action(marl_req)
+    else:
+        rl_req = RLActionRequest(session_id=request.session_id)
+        res = get_rl_next_action(rl_req)
+        if "error" in res: return res
+        
+        # Convert Single RL response to MARL format
+        # If MESSAGE_DIM isn't global, we use 4
+        msg_dim = 4 
+        try:
+            from rl.marl_env import MESSAGE_DIM
+            msg_dim = MESSAGE_DIM
+        except ImportError:
+            pass
+            
+        agents_data = []
+        for i, a in enumerate(res["actions"]):
+            agents_data.append({
+                "id": i,
+                "junction": a["junction"],
+                "adjustment_sec": a["adjustment_sec"],
+                "new_green_sec": a["new_green_sec"],
+                "queue": a["queue"],
+                "local_reward": res["metrics"]["reward"] / max(1, len(res["actions"])),
+                "message_sent": [0.0] * msg_dim,
+                "messages_received": {}
+            })
+            
+        return {
+            "step": res["step"],
+            "agents": agents_data,
+            "global_metrics": {
+                "avg_queue": res["metrics"]["avg_queue"],
+                "crowd_remaining_pct": res["metrics"]["crowd_remaining_pct"],
+                "global_reward": res["metrics"]["reward"] / max(1, len(res["actions"])),
+                "total_reward": res["metrics"]["reward"],
+            },
+            "done": res["done"]
+        }
+
 class RoadNetworkRequest(BaseModel):
     latitude: float
     longitude: float

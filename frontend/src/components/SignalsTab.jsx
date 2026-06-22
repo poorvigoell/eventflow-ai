@@ -21,20 +21,14 @@ export const SignalsTab = ({ signals, eventConfig }) => {
   const [marlMetrics, setMarlMetrics] = useState({ history: [] });
   const [isMarlStepping, setIsMarlStepping] = useState(false);
   const [isStartingMARL, setIsStartingMARL] = useState(false);
+  const [engineType, setEngineType] = useState(null);
   
   const timerRef = useRef(null);
   const marlTimerRef = useRef(null);
 
   useEffect(() => {
-    // Check if RL model is available
-    fetch('http://localhost:8000/api/rl/status')
-      .then(res => res.json())
-      .then(data => {
-        if (data.model_exists) setRlStatus(data);
-      })
-      .catch(() => {});
-    // Check if MARL model is available
-    fetch('http://localhost:8000/api/marl/status')
+    // Check if AI model is available
+    fetch('http://localhost:8000/api/ai/status')
       .then(res => res.json())
       .then(data => {
         if (data.model_exists) setMarlStatus(data);
@@ -151,11 +145,10 @@ export const SignalsTab = ({ signals, eventConfig }) => {
     setIsStepping(false);
   }
 
-  // --- MARL session functions ---
   const startMARLSession = async () => {
     setIsStartingMARL(true);
     try {
-      const response = await fetch('http://localhost:8000/api/marl/start-session', {
+      const response = await fetch('http://localhost:8000/api/ai/start-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,7 +156,9 @@ export const SignalsTab = ({ signals, eventConfig }) => {
           longitude: eventConfig?.longitude || 77.5998,
           event_type: eventConfig?.event_type || 'protest',
           duration_hours: eventConfig?.duration_hours || 2.0,
-          weather_rain: eventConfig?.weather_rain || false
+          weather_rain: eventConfig?.weather_rain || false,
+          total_incidents: eventConfig?.total_incidents || 0,
+          multi_event_mode: eventConfig?.multi_event_mode || false
         })
       });
       const data = await response.json();
@@ -174,6 +169,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
           agents: data.agents,
           adjacency: data.adjacency,
         });
+        setEngineType(data.engine);
         setMarlMetrics({ history: [] });
         setIsMarlStepping(true);
       }
@@ -187,7 +183,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
   const nextMARLStep = async () => {
     if (!marlSession) return;
     try {
-      const response = await fetch('http://localhost:8000/api/marl/next-action', {
+      const response = await fetch('http://localhost:8000/api/ai/next-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: marlSession.id })
@@ -277,27 +273,19 @@ export const SignalsTab = ({ signals, eventConfig }) => {
         </h2>
         
         {(rlStatus.model_exists || marlStatus.model_exists) && (
-          <div className="flex bg-[var(--color-surface)] rounded-lg p-1 border border-[var(--color-border)]">
+          <div className="flex bg-[var(--color-base)] p-1 rounded-lg">
             <button 
               onClick={() => setMode('webster')}
-              className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${mode === 'webster' ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
+              className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${mode === 'webster' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-main)] shadow' : 'text-[var(--color-text-muted)]'}`}
             >
-              Webster
+              <Radio size={16} /> Static (Webster)
             </button>
-            {rlStatus.model_exists && (
-              <button 
-                onClick={() => setMode('rl')}
-                className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${mode === 'rl' ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
-              >
-                <Brain size={16} /> RL Agent
-              </button>
-            )}
             {marlStatus.model_exists && (
               <button 
                 onClick={() => setMode('marl')}
                 className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${mode === 'marl' ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
               >
-                <Network size={16} /> MARL Cooperative
+                <Network size={16} /> Adaptive MARL Agent
               </button>
             )}
           </div>
@@ -357,7 +345,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                   </div>
                 </div>
                   <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                       <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
                         <XAxis type="number" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
@@ -452,7 +440,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                     <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider m-0">Average Queue Length Over Time</h3>
                   </div>
                   <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                       <LineChart data={rlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                         <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
@@ -473,7 +461,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                     <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider m-0">Crowd Evacuation Progress</h3>
                   </div>
                   <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                       <LineChart data={rlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                         <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
@@ -498,9 +486,16 @@ export const SignalsTab = ({ signals, eventConfig }) => {
           <div className="bg-[var(--color-surface-hover)] border-l-4 border-[var(--color-accent)] p-4 rounded-lg shadow-xl flex justify-between items-center">
             <div>
               <h5 className="text-[var(--color-accent)] font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
-                <Network size={14}/> MARL Cooperative Network
+                <Network size={14}/> Adaptive MARL (Multi-Agent Reinforcement Learning) Agent
               </h5>
-              <p className="text-sm text-[var(--color-text-main)]">5 independent AI agents coordinate signal timing through learned message-passing over the road network.</p>
+              <p className="text-sm text-[var(--color-text-main)] max-w-2xl mt-1">
+                {!marlSession ? 
+                  "Dynamic traffic signal optimization mapped over a multi-agent network representation." :
+                  engineType === 'MARL Cooperative' ?
+                  "The AI Coordinator evaluated this scenario as highly complex (high incident volume or multi-event crisis) and has deployed the Multi-Agent (MARL) Cooperative Network to manage cascading gridlock through distributed message-passing." :
+                  "The AI Coordinator evaluated this scenario as localized congestion and has deployed the high-speed Single-Agent RL model for focused, efficient traffic signal optimization."
+                }
+              </p>
             </div>
             
             {!marlSession ? (
@@ -509,8 +504,8 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                 disabled={isStartingMARL}
                 className="bg-[var(--color-accent)] hover:opacity-80 text-black px-6 py-2 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isStartingMARL ? <Loader2 size={16} className="animate-spin" /> : <Network size={16}/>}
-                {isStartingMARL ? "Deploying Agents..." : "Deploy MARL Network"}
+                {isStartingMARL ? <Loader2 size={16} className="animate-spin" /> : null}
+                {isStartingMARL ? "Deploying..." : "Deploy Agent"}
               </button>
             ) : (
               <div className="flex items-center gap-4">
@@ -596,7 +591,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                 <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
                   <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Per-Agent Queue Over Time</h3>
                   <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                       <LineChart data={marlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                         <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
@@ -617,7 +612,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                 <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
                   <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Crowd Evacuation &amp; Global Reward</h3>
                   <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                       <LineChart data={marlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                         <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />

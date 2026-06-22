@@ -85,7 +85,7 @@ const HeatmapLayer = ({ points }) => {
   return null;
 };
 
-export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
+export const DispersalTab = ({ lat, lng, eventType, totalIncidents, isActive = true }) => {
   const [timeMin, setTimeMin] = useState(15);
   const [dispersalData, setDispersalData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -228,32 +228,34 @@ export const DispersalTab = ({ lat, lng, eventType, totalIncidents }) => {
 
         <div className="flex gap-6 h-[500px]">
           <div className="flex-1 rounded-xl overflow-hidden shadow-2xl relative z-0">
-            <MapContainer 
-              center={[lat, lng]} 
-              zoom={14} 
-              style={{ height: '100%', width: '100%', backgroundColor: 'var(--color-base)' }}
-              zoomControl={false}
-              maxBounds={BENGALURU_BOUNDS}
-              minZoom={10}
-            >
-              <ZoomControl position="bottomright" />
-              <TileLayer url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png" />
-              {transit_pois.map((poi, i) => (
-                <Marker key={i} position={[poi.lat, poi.lng]} icon={getTransitIcon(poi)}>
-                  <LeafletTooltip>{poi.name} - {poi.type}{poi.line ? ` (${poi.line} Line)` : ''}</LeafletTooltip>
-                </Marker>
-              ))}
-
-              {/* Bengaluru Boundary */}
-              <Polygon 
-                positions={BENGALURU_BOUNDARY_COORDS} 
-                pathOptions={{ color: 'var(--color-accent)', weight: 2, opacity: 0.7, dashArray: '5, 5', fill: false }}
+            {isActive && (
+              <MapContainer 
+                center={[lat, lng]} 
+                zoom={14} 
+                style={{ height: '100%', width: '100%', backgroundColor: 'var(--color-base)' }}
+                zoomControl={false}
+                maxBounds={BENGALURU_BOUNDS}
+                minZoom={10}
               >
-                <LeafletTooltip>Bengaluru City Boundary</LeafletTooltip>
-              </Polygon>
+                <ZoomControl position="bottomright" />
+                <TileLayer url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png" />
+                {transit_pois.map((poi, i) => (
+                  <Marker key={i} position={[poi.lat, poi.lng]} icon={getTransitIcon(poi)}>
+                    <LeafletTooltip>{poi.name} - {poi.type}{poi.line ? ` (${poi.line} Line)` : ''}</LeafletTooltip>
+                  </Marker>
+                ))}
 
-              <HeatmapLayer points={currentSnapshot.points} />
-            </MapContainer>
+                {/* Bengaluru Boundary */}
+                <Polygon 
+                  positions={BENGALURU_BOUNDARY_COORDS} 
+                  pathOptions={{ color: 'var(--color-accent)', weight: 2, opacity: 0.7, dashArray: '5, 5', fill: false }}
+                >
+                  <LeafletTooltip>Bengaluru City Boundary</LeafletTooltip>
+                </Polygon>
+
+                <HeatmapLayer points={currentSnapshot.points} />
+              </MapContainer>
+            )}
           </div>
 
           <div className="w-[320px] flex flex-col gap-3 pb-2">

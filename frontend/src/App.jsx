@@ -127,7 +127,7 @@ function App() {
     let reconnectTimer = null;
 
     const connectWS = () => {
-      ws = new WebSocket('ws://127.0.0.1:8000/ws/alerts');
+      ws = new WebSocket('ws://localhost:8000/ws/alerts');
       
       ws.onmessage = (event) => {
         if (!isMounted) return;
@@ -315,6 +315,8 @@ function App() {
                 analyzeEvent={analyzeEvent}
                 isFullscreen={isFullscreen} setIsFullscreen={setIsFullscreen}
                 initialMapData={initialMapData}
+                anomalies={anomalies}
+                activeTab={activeTab}
               />
             )}
           </div>
@@ -331,7 +333,7 @@ function App() {
           <div style={{ display: activeTab === 'signals' ? 'block' : 'none' }}>
             {visitedTabs.includes('signals') && (
               (!data || data.error || !data.prediction) ? <EmptyState tabName="Signals" onGoLive={() => handleTabChange('live')} /> 
-                : <SignalsTab signals={data?.signals} eventConfig={{latitude: lat, longitude: lng, event_type: eventType, duration_hours: duration, weather_rain: rain}} />
+                : <SignalsTab signals={data?.signals} eventConfig={{latitude: lat, longitude: lng, event_type: eventType, duration_hours: duration, weather_rain: rain, total_incidents: data?.prediction?.total_incidents || 0, multi_event_mode: multiEvent}} />
             )}
           </div>
 
@@ -344,6 +346,7 @@ function App() {
                   lng={lng}
                   eventType={eventType}
                   totalIncidents={data.prediction.total_incidents}
+                  isActive={activeTab === 'dispersal'}
                 />
               )
             )}
