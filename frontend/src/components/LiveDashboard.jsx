@@ -63,6 +63,7 @@ export function LiveDashboard({
 }) {
   const [showBaseline, setShowBaseline] = useState(false);
   const [tomtomError, setTomtomError] = useState('');
+  const [isLiveTrafficMode, setIsLiveTrafficMode] = useState(false);
 
   // AI Operator States
   const [mode, setMode] = useState('manual');
@@ -239,27 +240,40 @@ export function LiveDashboard({
       {/* 1. Tracking Setup (Horizontal Bar) */}
       <div className="bg-[var(--color-surface)] p-5 rounded-xl shadow-2xl relative z-[70]">
         <div className="flex justify-between items-center mb-4 border-b border-[var(--color-border)] pb-3">
-          <div className="flex items-center gap-2">
-            <Navigation className="text-[var(--color-accent)]" size={18} />
-            <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Tracking Setup</h2>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Navigation className="text-[var(--color-accent)]" size={18} />
+              <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--color-text-muted)]">Tracking Setup</h2>
+            </div>
+            <label className="flex items-center gap-2 bg-[var(--color-base)] border border-[var(--color-accent)] px-3 py-1 rounded-full cursor-pointer hover:bg-[var(--color-surface)] transition-colors shadow-[0_0_10px_rgba(0,230,118,0.1)]">
+              <span className="text-[10px] font-bold text-[var(--color-text-main)] uppercase tracking-widest">Live Traffic</span>
+              <div className="relative inline-flex items-center">
+                <input type="checkbox" className="sr-only peer" checked={isLiveTrafficMode} onChange={(e) => setIsLiveTrafficMode(e.target.checked)} />
+                <div className="w-7 h-4 bg-[var(--color-surface)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[var(--color-accent)] shadow-inner"></div>
+              </div>
+            </label>
           </div>
-          <div className="flex bg-[var(--color-base)] p-1 rounded-lg">
-            <button
-              onClick={() => setMode('manual')}
-              className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${mode === 'manual' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-main)] shadow' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]'}`}
-            >
-              Manual Mode
-            </button>
-            <button
-              onClick={() => setMode('ai')}
-              className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors flex items-center gap-1.5 ${mode === 'ai' ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] shadow border border-[var(--color-accent)]/30' : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)]'}`}
-            >
-              <Bot size={14} /> Smart Predict
-            </button>
-          </div>
+          
+          {!isLiveTrafficMode && (
+            <div className="flex bg-[var(--color-base)] p-1 rounded-lg">
+              <button
+                onClick={() => setMode('manual')}
+                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors ${mode === 'manual' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-main)] shadow' : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-main)]'}`}
+              >
+                Manual Mode
+              </button>
+              <button
+                onClick={() => setMode('ai')}
+                className={`px-4 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-colors flex items-center gap-1.5 ${mode === 'ai' ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)] shadow border border-[var(--color-accent)]/30' : 'text-[var(--color-text-muted)] hover:text-[var(--color-accent)]'}`}
+              >
+                <Bot size={14} /> Smart Predict
+              </button>
+            </div>
+          )}
         </div>
 
-        {mode === 'manual' ? (
+        {!isLiveTrafficMode && (
+          mode === 'manual' ? (
           <div className="grid grid-cols-1 xl:grid-cols-7 gap-4 items-center">
             <div className="flex flex-col h-full justify-center">
               <label className="block text-[10px] font-bold text-[var(--color-text-muted)] mb-1.5 uppercase tracking-wide">Event Category</label>
@@ -367,7 +381,7 @@ export function LiveDashboard({
               </button>
             </div>
           </div>
-        )}
+        ))}
       </div>
 
       {/* 2. Map (Fixed/Fullscreen Height) */}
@@ -418,6 +432,7 @@ export function LiveDashboard({
             lat={lat}
             lng={lng}
             showPin={showPin}
+            isLiveTrafficMode={isLiveTrafficMode}
             setLocation={(loc) => { setLat(loc.lat); setLng(loc.lng); setShowPin(true); if (setData) setData(null); }}
             locationName={locationName}
             setLocationName={(name) => { setLocationName(name); setShowPin(true); }}

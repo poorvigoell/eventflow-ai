@@ -57,6 +57,7 @@ const BENGALURU_BOUNDS = [
   [13.3, 77.8]  // NorthEast corner
 ];
 
+
 function DynamicRoads({ roads, overlayVisibility, roadZoom, setRoadZoom }) {
   const map = useMap();
 
@@ -128,7 +129,7 @@ function OverlayController({ overlayItemsRef }) {
   return null;
 }
 
-export default function MapOverlay({ lat, lng, showPin, setLocation, locationName, setLocationName, predictionData, criticalRoads, emergencyRoutes, initialMapData, targetBoundary, setTargetBoundary }) {
+export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLocation, locationName, setLocationName, predictionData, criticalRoads, emergencyRoutes, initialMapData, targetBoundary, setTargetBoundary }) {
 
   const [externalTraffic, setExternalTraffic] = React.useState(null);
   const [roadZoom, setRoadZoom] = useState(14);
@@ -284,6 +285,14 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
             url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
             attribution='&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
           />
+          {isLiveTrafficMode && (
+            <TileLayer
+              url="https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=ORWaElJompOORRkCLxk13gC3ZHZaKsWN"
+              attribution='&copy; TomTom Traffic'
+              opacity={0.8}
+              bounds={BENGALURU_BOUNDS}
+            />
+          )}
           <MapAutoZoom lat={lat} lng={lng} predictionData={predictionData} />
           {renderCommonElements()}
           <Polygon
@@ -318,6 +327,14 @@ export default function MapOverlay({ lat, lng, showPin, setLocation, locationNam
         url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
         attribution='&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
       />
+      {isLiveTrafficMode && (
+        <TileLayer
+          url="https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=ORWaElJompOORRkCLxk13gC3ZHZaKsWN"
+          attribution='&copy; TomTom Traffic'
+          opacity={0.8}
+          bounds={BENGALURU_BOUNDS}
+        />
+      )}
       <MapAutoZoom lat={lat} lng={lng} predictionData={predictionData} />
       {renderCommonElements()}
 
