@@ -1,7 +1,8 @@
 import { ShieldAlert, Map as MapIcon, Info } from 'lucide-react';
 import { Card, MetricBox } from './ui/components';
+import { DigitalTwin } from './DigitalTwin';
 
-export function TacticalPlan({ data }) {
+export function TacticalPlan({ data, lat, lng, predictionData }) {
   if (!data || !data.tactical) return null;
 
   return (
@@ -96,6 +97,12 @@ export function TacticalPlan({ data }) {
           </div>
         </Card>
       </div>
+
+      {/* Digital Twin Embedded Section */}
+      <div className="mt-12 pt-8 border-t border-[var(--color-border)]">
+        <DigitalTwin lat={lat} lng={lng} predictionData={predictionData} />
+      </div>
+
     </div>
   );
 }
