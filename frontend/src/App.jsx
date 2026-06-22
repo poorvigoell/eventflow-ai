@@ -273,7 +273,6 @@ function App() {
           <TabButton active={activeTab === 'tactical'} onClick={() => handleTabChange('tactical')} icon={<ListChecks size={18} />} label="Tactical Plan" />
           <TabButton active={activeTab === 'signals'} onClick={() => handleTabChange('signals')} icon={<Radio size={18} />} label="Signals" />
           <TabButton active={activeTab === 'dispersal'} onClick={() => handleTabChange('dispersal')} icon={<Route size={18} />} label="Crowd Dispersal" />
-          <TabButton active={activeTab === 'twin'} onClick={() => handleTabChange('twin')} icon={<Cpu size={18} />} label="Digital Twin" />
           <TabButton active={activeTab === 'autopsy'} onClick={() => handleTabChange('autopsy')} icon={<FileSearch size={18} />} label="Causal Autopsy" />
           <div className="flex-grow"></div>
           <div className="flex items-center gap-2 pr-2">
@@ -322,12 +321,12 @@ function App() {
           </div>
 
           {/* Tactical Plan Tab */}
-          <div style={{ display: activeTab === 'tactical' ? 'block' : 'none' }}>
-            {visitedTabs.includes('tactical') && (
-              (!data || data.error || !data.prediction) ? <EmptyState tabName="Tactical Plan" onGoLive={() => handleTabChange('live')} />
-                : <TacticalPlan data={data} />
-            )}
-          </div>
+          {activeTab === 'tactical' && (
+            <div className="w-full h-full animate-in fade-in duration-300">
+              {(!data || data.error || !data.prediction) ? <EmptyState tabName="Tactical Plan" onGoLive={() => handleTabChange('live')} />
+                : <TacticalPlan data={data} lat={lat} lng={lng} predictionData={data.prediction} />}
+            </div>
+          )}
 
           {/* Signals Tab */}
           <div style={{ display: activeTab === 'signals' ? 'block' : 'none' }}>
@@ -352,18 +351,7 @@ function App() {
             )}
           </div>
 
-          {/* Digital Twin Tab */}
-          <div style={{ display: activeTab === 'twin' ? 'block' : 'none' }}>
-            {visitedTabs.includes('twin') && (
-              (!data || data.error || !data.prediction) ? <EmptyState tabName="Digital Twin" onGoLive={() => handleTabChange('live')} /> : (
-                <DigitalTwin
-                  lat={lat}
-                  lng={lng}
-                  predictionData={data.prediction}
-                />
-              )
-            )}
-          </div>
+
 
           {/* Autopsy Tab */}
           <div style={{ display: activeTab === 'autopsy' ? 'block' : 'none' }}>

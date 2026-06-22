@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, MetricBox } from './ui/components';
 import { Cpu, Info } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, Polygon } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip, Polygon, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
 const generateDynamicPolygon = (centerLat, centerLng, baseRadiusMeters, seed) => {
@@ -71,7 +71,7 @@ export const DigitalTwin = ({ lat, lng, predictionData }) => {
   const actualPolygon = generateDynamicPolygon(lat, lng, 1600, seed + 1.5);
 
   return (
-    <div className="flex flex-col flex-1 w-full max-w-7xl mx-auto space-y-6">
+    <div className="flex flex-col flex-1 w-full space-y-6">
       <div className="flex justify-between items-center border-b border-[var(--color-border)] pb-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2 text-[var(--color-text-main)]">
