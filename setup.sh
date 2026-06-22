@@ -31,6 +31,21 @@ pip install -r requirements.txt
 echo "🧠 Retraining Causal Model to sync with local scikit-learn version..."
 python models/causal_engine.py
 
+# 5. Train Reinforcement Learning Models
+if [ ! -f "models/rl_model.zip" ] && [ ! -f "rl/checkpoints/ppo_eventflow.zip" ]; then
+    echo "🤖 Training Baseline RL Agent (this takes a few seconds)..."
+    python -m rl.train_rl
+else
+    echo "🤖 Baseline RL Agent already exists. Skipping training."
+fi
+
+if [ ! -f "rl/checkpoints/ppo_marl_eventflow.zip" ]; then
+    echo "🤝 Training Cooperative MARL Agents (this takes a bit longer)..."
+    export PYTHONPATH=. && python rl/train_marl.py
+else
+    echo "🤝 Cooperative MARL Agents already exist. Skipping training."
+fi
+
 echo "✅ Setup Complete!"
 echo ""
 echo "To start the backend, run:"

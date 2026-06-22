@@ -41,7 +41,19 @@ try:
 except ImportError:
     RL_AVAILABLE = False
 
+# MARL imports
+MARL_AVAILABLE = False
+try:
+    from rl.marl_env import MARLTrafficEnv, NUM_AGENTS, OBS_DIM_PER_AGENT, MESSAGE_DIM
+    from rl.marl_network import MARLFeaturesExtractor, MARLMessageModule
+    MARL_AVAILABLE = RL_AVAILABLE  # MARL needs SB3 too
+except ImportError:
+    pass
+
 rl_sessions = {}
+marl_sessions = {}
+_marl_model = None
+_marl_message_module = None
 
 app = FastAPI(title="EventFlow AI Backend")
 
@@ -544,6 +556,178 @@ def get_rl_next_action(request: RLActionRequest):
 def end_rl_session(request: RLActionRequest):
     if request.session_id in rl_sessions:
         del rl_sessions[request.session_id]
+    return {"status": "success"}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MARL (Multi-Agent Reinforcement Learning) Endpoints
+# ═══════════════════════════════════════════════════════════════════════════
+
+class MARLStartRequest(BaseModel):
+    latitude: float = 12.9789
+    longitude: float = 77.5998
+    event_type: str = "protest"
+    duration_hours: float = 2.0
+    weather_rain: bool = False
+
+class MARLActionRequest(BaseModel):
+    session_id: str
+
+@app.get("/api/marl/status")
+def get_marl_status():
+    if not MARL_AVAILABLE:
+        return {"model_exists": False, "error": "MARL not installed"}
+    model_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "ppo_marl_eventflow.zip")
+    exists = os.path.exists(model_path)
+    return {
+        "model_exists": exists,
+        "num_agents": NUM_AGENTS,
+        "message_dim": MESSAGE_DIM,
+        "checkpoint_path": model_path if exists else None,
+        "last_trained": datetime.datetime.fromtimestamp(os.path.getmtime(model_path)).isoformat() if exists else None
+    }
+
+@app.post("/api/marl/start-session")
+def start_marl_session(request: MARLStartRequest):
+    global _marl_model, _marl_message_module
+    if not MARL_AVAILABLE:
+        return {"error": "MARL not available"}
+    
+    model_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "ppo_marl_eventflow.zip")
+    if not os.path.exists(model_path):
+        return {"error": "MARL model not trained yet."}
+    
+    session_id = str(uuid.uuid4())
+    
+    config = {
+        'latitude': request.latitude,
+        'longitude': request.longitude,
+        'event_type': request.event_type,
+        'duration_hours': request.duration_hours,
+        'weather_rain': request.weather_rain,
+    }
+    
+    env = MARLTrafficEnv(G=G, config=config)
+    obs, _ = env.reset()
+    
+    if _marl_model is None:
+        _marl_model = PPO.load(model_path, env=env)
+    
+    # Initialize message module
+    if _marl_message_module is None:
+        try:
+            features_extractor = _marl_model.policy.features_extractor
+            _marl_message_module = MARLMessageModule(features_extractor, device=_marl_model.device)
+            # Try to load saved message network weights
+            msg_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "marl_message_net.pt")
+            if os.path.exists(msg_path):
+                import torch
+                _marl_message_module.load_state_dict(torch.load(msg_path, map_location=_marl_model.device, weights_only=True))
+        except Exception as e:
+            print(f"Message module init warning: {e}")
+    
+    marl_sessions[session_id] = {
+        "env": env,
+        "model": _marl_model,
+        "message_module": _marl_message_module,
+        "last_accessed": datetime.datetime.now(),
+    }
+    
+    # Build agent data with adjacency info
+    agents_data = []
+    for i, j in enumerate(env.junctions):
+        neighbors = env.get_neighbors(i)
+        agents_data.append({
+            "id": i,
+            "junction": j.get('name', f"Junction {i+1}"),
+            "initial_green_sec": float(env.green_times[i]),
+            "initial_queue": float(env.queues[i]),
+            "neighbors": neighbors,
+        })
+    
+    return {
+        "session_id": session_id,
+        "agents": agents_data,
+        "adjacency": env.get_adjacency(),
+        "total_incidents": env.total_incidents,
+    }
+
+@app.post("/api/marl/next-action")
+def get_marl_next_action(request: MARLActionRequest):
+    if not MARL_AVAILABLE:
+        return {"error": "MARL not available"}
+    session = marl_sessions.get(request.session_id)
+    if not session:
+        return {"error": "Invalid or expired MARL session ID."}
+    
+    env = session["env"]
+    model = session["model"]
+    msg_module = session.get("message_module")
+    session["last_accessed"] = datetime.datetime.now()
+    
+    # Get observation and predict
+    obs = env._get_flat_obs()
+    action, _ = model.predict(obs, deterministic=True)
+    
+    # Generate messages BEFORE stepping (these are "intentions" from current state)
+    messages_sent = {}
+    if msg_module is not None:
+        try:
+            messages = msg_module.generate_messages(obs)
+            for i in range(env.num_agents):
+                messages_sent[i] = messages[i].tolist()
+            env.set_messages(messages)
+        except Exception:
+            for i in range(env.num_agents):
+                messages_sent[i] = [0.0] * MESSAGE_DIM
+    else:
+        for i in range(env.num_agents):
+            messages_sent[i] = [0.0] * MESSAGE_DIM
+    
+    old_greens = list(env.green_times)
+    obs, reward, done, _, info = env.step(action)
+    
+    # Build per-agent response
+    agents_data = []
+    for i in range(env.num_agents):
+        adjustment = env.green_times[i] - old_greens[i]
+        
+        # Collect messages received by this agent from its neighbors
+        msgs_received = {}
+        for k in env.get_neighbors(i):
+            msgs_received[str(k)] = messages_sent.get(k, [0.0] * MESSAGE_DIM)
+        
+        agents_data.append({
+            "id": i,
+            "junction": env.junctions[i].get('name', f"Junction {i+1}"),
+            "adjustment_sec": float(adjustment),
+            "new_green_sec": float(env.green_times[i]),
+            "queue": float(env.queues[i]),
+            "local_reward": float(info['per_agent_rewards'][i]),
+            "message_sent": messages_sent.get(i, [0.0] * MESSAGE_DIM),
+            "messages_received": msgs_received,
+        })
+    
+    total_cars = sum(env.queues)
+    
+    if done or (total_cars < 10 and env.crowd_remaining < 0.05):
+        done = True
+    
+    return {
+        "step": env.current_step,
+        "agents": agents_data,
+        "global_metrics": {
+            "avg_queue": float(info['avg_queue']),
+            "crowd_remaining_pct": float(env.crowd_remaining * 100),
+            "global_reward": float(reward / env.num_agents),
+            "total_reward": float(reward),
+        },
+        "done": done,
+    }
+
+@app.post("/api/marl/end-session")
+def end_marl_session(request: MARLActionRequest):
+    if request.session_id in marl_sessions:
+        del marl_sessions[request.session_id]
     return {"status": "success"}
 
 class RoadNetworkRequest(BaseModel):

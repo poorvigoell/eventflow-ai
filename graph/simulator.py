@@ -541,3 +541,46 @@ def get_transit_infrastructure(lat: float, lng: float, radius: float = 1500) -> 
     return infra_points
 
 
+def compute_junction_adjacency(G, junctions, max_dist_m=500):
+    """
+    Given a list of junctions (each with 'u' node ID from the osmnx graph),
+    compute a boolean adjacency matrix based on real road-network
+    shortest-path distance. Two junctions are neighbors if the road
+    distance between them is <= max_dist_m.
+    
+    Returns:
+        adjacency: list[list[bool]] — NxN adjacency matrix
+        distances: list[list[float]] — NxN distance matrix (meters), -1 if unreachable
+    """
+    n = len(junctions)
+    adjacency = [[False] * n for _ in range(n)]
+    distances = [[-1.0] * n for _ in range(n)]
+    
+    # Extract source nodes for each junction
+    nodes = []
+    for j in junctions:
+        # Use the 'u' node from the junction data if available
+        node = j.get('u')
+        if node is None:
+            # Fallback: find nearest node from lat/lng
+            lat = j.get('lat', j.get('latitude', 12.97))
+            lng = j.get('lng', j.get('longitude', 77.59))
+            node = find_nearest_node(G, lat, lng)
+        nodes.append(node)
+    
+    # Compute pairwise shortest-path distances
+    for i in range(n):
+        for k in range(i + 1, n):
+            try:
+                dist = nx.shortest_path_length(G, nodes[i], nodes[k], weight='length')
+                distances[i][k] = dist
+                distances[k][i] = dist
+                if dist <= max_dist_m:
+                    adjacency[i][k] = True
+                    adjacency[k][i] = True
+            except (nx.NetworkXNoPath, nx.NodeNotFound):
+                # Nodes are unreachable from each other
+                distances[i][k] = -1.0
+                distances[k][i] = -1.0
+    
+    return adjacency, distances

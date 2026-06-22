@@ -1,3 +1,8 @@
+"""
+Single-agent RL training script (legacy).
+For the newer Multi-Agent RL (MARL) cooperative model, see: rl/train_marl.py
+"""
+
 import os
 import argparse
 from stable_baselines3 import PPO

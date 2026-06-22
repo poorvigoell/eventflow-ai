@@ -100,8 +100,46 @@ if __name__ == "__main__":
     print("Running Webster Baseline...")
     webster_res = run_webster_baseline(env)
     
+    # --- MARL Evaluation ---
+    marl_res = {"error": "No MARL model found"}
+    marl_model_path = "./rl/checkpoints/ppo_marl_eventflow.zip"
+    if os.path.exists(marl_model_path):
+        try:
+            from rl.marl_env import MARLTrafficEnv
+            from rl.marl_network import MARLFeaturesExtractor
+            
+            print("Running MARL Cooperative Agent...")
+            marl_env = MARLTrafficEnv(G=None)
+            policy_kwargs = {
+                "features_extractor_class": MARLFeaturesExtractor,
+                "features_extractor_kwargs": {"features_dim": 128},
+            }
+            marl_model = PPO.load(marl_model_path, env=marl_env)
+            
+            marl_rewards = []
+            marl_queues = []
+            for _ in range(5):
+                obs, _ = marl_env.reset()
+                done = False
+                ep_reward = 0
+                while not done:
+                    action, _ = marl_model.predict(obs, deterministic=True)
+                    obs, reward, done, _, info = marl_env.step(action)
+                    ep_reward += reward
+                marl_rewards.append(ep_reward)
+                marl_queues.append(info['avg_queue'])
+            
+            marl_res = {
+                "mean_reward": float(np.mean(marl_rewards)),
+                "final_avg_queue": float(np.mean(marl_queues)),
+                "per_agent_queues": info.get('per_agent_queues', []),
+            }
+        except Exception as e:
+            marl_res = {"error": str(e)}
+    
     report = {
         "rl_agent": rl_res,
+        "marl_cooperative_agent": marl_res,
         "random_agent": rand_res,
         "webster_baseline": webster_res
     }

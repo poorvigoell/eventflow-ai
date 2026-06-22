@@ -1,17 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from './ui/components';
-import { Radio, Brain, Activity, Zap, Loader2, Info } from 'lucide-react';
+import { Radio, Brain, Activity, Zap, Loader2, Info, Network } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { AgentNetworkGraph } from './AgentNetworkGraph';
+
+const AGENT_COLORS = ['#06d6a0', '#118ab2', '#ef476f', '#ffd166', '#8338ec'];
 
 export const SignalsTab = ({ signals, eventConfig }) => {
-  const [isRLMode, setIsRLMode] = useState(false);
+  // Mode: 'webster' | 'rl' | 'marl'
+  const [mode, setMode] = useState('webster');
   const [rlStatus, setRlStatus] = useState({ model_exists: false });
   const [rlSession, setRlSession] = useState(null);
   const [rlMetrics, setRlMetrics] = useState({ history: [] });
   const [isStepping, setIsStepping] = useState(false);
   const [isStartingRL, setIsStartingRL] = useState(false);
   
+  // MARL state
+  const [marlStatus, setMarlStatus] = useState({ model_exists: false });
+  const [marlSession, setMarlSession] = useState(null);
+  const [marlMetrics, setMarlMetrics] = useState({ history: [] });
+  const [isMarlStepping, setIsMarlStepping] = useState(false);
+  const [isStartingMARL, setIsStartingMARL] = useState(false);
+  
   const timerRef = useRef(null);
+  const marlTimerRef = useRef(null);
 
   useEffect(() => {
     // Check if RL model is available
@@ -20,9 +32,17 @@ export const SignalsTab = ({ signals, eventConfig }) => {
       .then(data => {
         if (data.model_exists) setRlStatus(data);
       })
-      .catch(err => console.error("RL Status error:", err));
+      .catch(() => {});
+    // Check if MARL model is available
+    fetch('http://localhost:8000/api/marl/status')
+      .then(res => res.json())
+      .then(data => {
+        if (data.model_exists) setMarlStatus(data);
+      })
+      .catch(() => {});
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (marlTimerRef.current) clearInterval(marlTimerRef.current);
     };
   }, []);
   
@@ -131,6 +151,99 @@ export const SignalsTab = ({ signals, eventConfig }) => {
     setIsStepping(false);
   }
 
+  // --- MARL session functions ---
+  const startMARLSession = async () => {
+    setIsStartingMARL(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/marl/start-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          latitude: eventConfig?.latitude || 12.9789,
+          longitude: eventConfig?.longitude || 77.5998,
+          event_type: eventConfig?.event_type || 'protest',
+          duration_hours: eventConfig?.duration_hours || 2.0,
+          weather_rain: eventConfig?.weather_rain || false
+        })
+      });
+      const data = await response.json();
+      if (data.session_id) {
+        setMarlSession({
+          id: data.session_id,
+          step: 0,
+          agents: data.agents,
+          adjacency: data.adjacency,
+        });
+        setMarlMetrics({ history: [] });
+        setIsMarlStepping(true);
+      }
+    } catch (err) {
+      console.error("Error starting MARL session:", err);
+    } finally {
+      setIsStartingMARL(false);
+    }
+  };
+
+  const nextMARLStep = async () => {
+    if (!marlSession) return;
+    try {
+      const response = await fetch('http://localhost:8000/api/marl/next-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: marlSession.id })
+      });
+      const data = await response.json();
+      if (data.agents) {
+        setMarlSession(prev => ({
+          ...prev,
+          step: data.step,
+          agents: data.agents,
+        }));
+        setMarlMetrics(prev => ({
+          history: [...prev.history, {
+            step: data.step,
+            avg_queue: data.global_metrics.avg_queue,
+            crowd: data.global_metrics.crowd_remaining_pct,
+            total_reward: data.global_metrics.total_reward,
+            ...Object.fromEntries(data.agents.map(a => [`q${a.id}`, a.queue])),
+          }].slice(-30)
+        }));
+
+        const totalCars = data.agents.reduce((s, a) => s + a.queue, 0);
+        if (data.done || (totalCars < 10 && data.global_metrics.crowd_remaining_pct < 10)) {
+          stopMARLAutoStep();
+          if (totalCars < 10 && data.global_metrics.crowd_remaining_pct < 10 && data.step > 0) {
+            setTimeout(() => {
+              alert("MARL Cooperative Agents have resolved all traffic! Standing down.");
+            }, 300);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Error stepping MARL:", err);
+      stopMARLAutoStep();
+    }
+  };
+
+  useEffect(() => {
+    let interval = null;
+    if (isMarlStepping) {
+      interval = setInterval(() => { nextMARLStep(); }, 2000);
+      marlTimerRef.current = interval;
+    } else {
+      if (marlTimerRef.current) clearInterval(marlTimerRef.current);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+      if (marlTimerRef.current) clearInterval(marlTimerRef.current);
+    };
+  }, [isMarlStepping, marlSession?.id]);
+
+  function stopMARLAutoStep() {
+    if (marlTimerRef.current) clearInterval(marlTimerRef.current);
+    setIsMarlStepping(false);
+  }
+
   if (!signals || signals.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center text-[var(--color-text-muted)]">
@@ -163,25 +276,35 @@ export const SignalsTab = ({ signals, eventConfig }) => {
           </div>
         </h2>
         
-        {rlStatus.model_exists && (
+        {(rlStatus.model_exists || marlStatus.model_exists) && (
           <div className="flex bg-[var(--color-surface)] rounded-lg p-1 border border-[var(--color-border)]">
             <button 
-              onClick={() => setIsRLMode(false)}
-              className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${!isRLMode ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
+              onClick={() => setMode('webster')}
+              className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${mode === 'webster' ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
             >
-              Webster Baseline
+              Webster
             </button>
-            <button 
-              onClick={() => setIsRLMode(true)}
-              className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${isRLMode ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
-            >
-              <Brain size={16} /> RL Agent
-            </button>
+            {rlStatus.model_exists && (
+              <button 
+                onClick={() => setMode('rl')}
+                className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${mode === 'rl' ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
+              >
+                <Brain size={16} /> RL Agent
+              </button>
+            )}
+            {marlStatus.model_exists && (
+              <button 
+                onClick={() => setMode('marl')}
+                className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${mode === 'marl' ? 'bg-purple-500 text-white shadow-md shadow-purple-500/30' : 'text-[var(--color-text-muted)]'}`}
+              >
+                <Network size={16} /> MARL Cooperative
+              </button>
+            )}
           </div>
         )}
       </div>
       
-      {!isRLMode ? (
+      {mode === 'webster' ? (
         // --- WEBSTER BASELINE MODE ---
         <>
           <div className="bg-[var(--color-surface-hover)] border-l-4 border-[var(--color-accent)] p-4 rounded-lg mb-6 shadow-xl">
@@ -255,7 +378,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             </div>
           </div>
         </>
-      ) : (
+      ) : mode === 'rl' ? (
         // --- RL AGENT MODE ---
         <div className="space-y-6 animate-fade-in">
           <div className="bg-[var(--color-surface-hover)] border-l-4 border-[var(--color-accent)] p-4 rounded-lg shadow-xl flex justify-between items-center">
@@ -327,15 +450,6 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                 <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider m-0">Average Queue Length Over Time</h3>
-                    <div className="group relative flex items-center">
-                      <div className="flex items-center justify-center transition duration-200 hover:scale-110">
-                        <Info size={16} className="text-[var(--color-accent)] cursor-help" />
-                      </div>
-                      <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
-                        <span><strong>Formula:</strong> Q<sub>t+1</sub> = max(0, Q<sub>t</sub> + A - D × g)</span><br/><br/>
-                        This chart tracks the average number of vehicles stuck at red lights. The agent computes queue volume (Q) over time by adding Arrivals (A) and subtracting Discharge (D) during green time (g).
-                      </div>
-                    </div>
                   </div>
                   <div className="flex-1 w-full relative">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
@@ -357,15 +471,6 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                 <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
                   <div className="flex items-center gap-2 mb-2">
                     <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider m-0">Crowd Evacuation Progress</h3>
-                    <div className="group relative flex items-center">
-                      <div className="flex items-center justify-center transition duration-200 hover:scale-110">
-                        <Info size={16} className="text-[var(--color-accent)] cursor-help" />
-                      </div>
-                      <div className="absolute top-full mt-2 right-0 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
-                        <span><strong>Formula:</strong> E<sub>t+1</sub> = max(0, E<sub>t</sub> - (V<sub>cleared</sub> / C<sub>total</sub>) × 100)</span><br/><br/>
-                        Tracks the percentage of event attendees (E) still attempting to leave. Reduced at each step by the volume of vehicles successfully cleared (V) relative to the total crowd size (C).
-                      </div>
-                    </div>
                   </div>
                   <div className="flex-1 w-full relative">
                     <ResponsiveContainer width="100%" height="100%">
@@ -379,6 +484,151 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                           labelStyle={{ color: 'var(--color-text-muted)' }}
                         />
                         <Line type="monotone" dataKey="crowd" stroke="var(--color-accent)" strokeWidth={3} dot={false} isAnimationActive={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        // --- MARL COOPERATIVE MODE ---
+        <div className="space-y-6 animate-fade-in">
+          <div className="bg-[var(--color-surface-hover)] border-l-4 border-purple-500 p-4 rounded-lg shadow-xl flex justify-between items-center">
+            <div>
+              <h5 className="text-purple-400 font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
+                <Network size={14}/> MARL Cooperative Network
+              </h5>
+              <p className="text-sm text-[var(--color-text-main)]">5 independent AI agents coordinate signal timing through learned message-passing over the road network.</p>
+            </div>
+            
+            {!marlSession ? (
+              <button 
+                onClick={startMARLSession}
+                disabled={isStartingMARL}
+                className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-purple-500/30 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isStartingMARL ? <Loader2 size={16} className="animate-spin" /> : <Network size={16}/>}
+                {isStartingMARL ? "Deploying Agents..." : "Deploy MARL Network"}
+              </button>
+            ) : (
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className="text-xs text-[var(--color-text-muted)]">COOPERATIVE STEP</div>
+                  <div className="text-2xl font-mono text-purple-400 font-bold">{marlSession.step} / 120</div>
+                </div>
+                <button 
+                  onClick={() => setIsMarlStepping(!isMarlStepping)}
+                  className={`px-6 py-2 rounded-lg font-bold shadow-lg transition-all ${isMarlStepping ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-purple-500 text-white hover:bg-purple-600 shadow-purple-500/30'}`}
+                >
+                  {isMarlStepping ? 'PAUSE' : 'RESUME'}
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {marlSession && (
+            <>
+              <div className="flex flex-col lg:flex-row gap-6">
+                {/* Agent Network Graph */}
+                <Card className="bg-[var(--color-surface)] flex flex-col lg:flex-[2] min-h-[400px] lg:h-[600px]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider m-0">Agent Communication Network</h3>
+                    <div className="group relative flex items-center">
+                      <Info size={16} className="text-purple-400 cursor-help" />
+                      <div className="absolute top-full mt-2 left-0 w-72 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
+                        Each node is an independent AI agent controlling a traffic light. Dashed lines show communication links. Green pulses = coordination signals. Red pulses = congestion warnings. Ring around each node shows queue pressure.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-[320px]">
+                    <AgentNetworkGraph agents={marlSession.agents} adjacency={marlSession.adjacency} step={marlSession.step} />
+                  </div>
+                </Card>
+
+                {/* Per-Agent Cards */}
+                <div className="flex flex-col grid-cols-1 sm:grid sm:grid-cols-2 lg:flex lg:flex-col lg:flex-[1] gap-4 lg:h-[600px] lg:overflow-y-auto lg:pr-2 custom-scrollbar">
+                  {marlSession.agents.map((agent, i) => (
+                    <Card key={i} className="bg-[var(--color-surface)] relative overflow-hidden group shrink-0" style={{ borderTop: `4px solid ${AGENT_COLORS[i]}` }}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: AGENT_COLORS[i] }} />
+                        <div className="text-xs text-[var(--color-text-muted)] truncate font-bold">A{i + 1}: {agent.junction}</div>
+                      </div>
+                      <div className="flex justify-between items-end mb-3">
+                        <div>
+                          <div className="text-3xl font-mono font-bold text-[var(--color-text-main)]">{Math.round(agent.new_green_sec)}s</div>
+                          <div className="text-xs text-[var(--color-text-muted)]">Green Time</div>
+                        </div>
+                        <div className={`text-sm font-bold font-mono px-2 py-1 rounded ${agent.adjustment_sec > 0 ? 'bg-green-500/20 text-green-400' : agent.adjustment_sec < 0 ? 'bg-red-500/20 text-red-400' : 'bg-[var(--color-base)] text-[var(--color-text-muted)]'}`}>
+                          {agent.adjustment_sec > 0 ? '+' : ''}{agent.adjustment_sec}s
+                        </div>
+                      </div>
+                      
+                      {/* Queue */}
+                      <div className="border-t border-[var(--color-border)] pt-2 mb-2">
+                        <div className="flex justify-between text-[10px] uppercase text-[var(--color-text-muted)] mb-1">
+                          <span>Queue</span>
+                          <span>{Math.round(agent.queue)} veh</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-[var(--color-base)] rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full transition-all duration-1000 ${agent.queue > 400 ? 'bg-red-500' : agent.queue > 200 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                            style={{ width: `${Math.min(100, (agent.queue / 600) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Local Reward */}
+                      <div className="flex justify-between text-[10px] text-[var(--color-text-muted)]">
+                        <span>Reward</span>
+                        <span className={`font-mono font-bold ${agent.local_reward > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {agent.local_reward?.toFixed(2)}
+                        </span>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
+                  <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Per-Agent Queue Over Time</h3>
+                  <div className="flex-1 w-full relative">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                      <LineChart data={marlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                        <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
+                        <YAxis stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
+                        <RechartsTooltip 
+                          contentStyle={{ backgroundColor: 'var(--color-surface-hover)', borderColor: 'var(--color-border)' }}
+                          itemStyle={{ color: 'var(--color-text-main)' }}
+                          labelStyle={{ color: 'var(--color-text-muted)' }}
+                        />
+                        {[0,1,2,3,4].map(idx => (
+                          <Line key={idx} type="monotone" dataKey={`q${idx}`} name={`Agent ${idx+1}`} stroke={AGENT_COLORS[idx]} strokeWidth={2} dot={false} isAnimationActive={false} />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+                
+                <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
+                  <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Crowd Evacuation &amp; Global Reward</h3>
+                  <div className="flex-1 w-full relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={marlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                        <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
+                        <YAxis stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
+                        <RechartsTooltip 
+                          contentStyle={{ backgroundColor: 'var(--color-surface-hover)', borderColor: 'var(--color-border)' }}
+                          itemStyle={{ color: 'var(--color-text-main)' }}
+                          labelStyle={{ color: 'var(--color-text-muted)' }}
+                        />
+                        <Line type="monotone" dataKey="crowd" name="Crowd %" stroke="var(--color-accent)" strokeWidth={3} dot={false} isAnimationActive={false} />
+                        <Line type="monotone" dataKey="total_reward" name="Global Reward" stroke="#8338ec" strokeWidth={2} dot={false} isAnimationActive={false} strokeDasharray="5 5" />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
