@@ -1,11 +1,12 @@
 import os
 import sys
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import joblib
 import pandas as pd
 import numpy as np
 import graph.simulator as sim
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def _load_model():
     saved_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), 'saved'))
@@ -59,7 +60,8 @@ def predict_event_impact(
     longitude: float,
     zone: str,
     start_time: str,
-    duration_hours: float
+    duration_hours: float,
+    G=None
 ) -> dict:
     _model, _meta = _load_model()
 
@@ -140,7 +142,10 @@ def predict_event_impact(
     steady = max(0, int(round(total_pred * steady_ratio)))
     exodus = total_pred - inflow - steady
 
-    high_risk = get_high_risk_junctions(latitude, longitude, total_pred)
+    if G is not None:
+        high_risk = sim.get_high_risk_junctions_graph(G, latitude, longitude, total_pred)
+    else:
+        high_risk = []
     timeline = get_phase_timeline(total_pred, start_time, duration_hours)
 
     confidence = min(0.95, _meta['r2']) if _meta else 0.5
@@ -161,37 +166,7 @@ def predict_event_impact(
         "confidence": round(confidence, 2)
     }
 
-def get_high_risk_junctions(latitude: float, longitude: float, total_incidents: int) -> list:
-    """Returns top 5 high risk junctions based on event location and predicted volume"""
-    # Return empty list for low incident counts (<3) to avoid spurious high‑risk nodes
-    if total_incidents < 3:
-        return []
-        
-    np.random.seed(int(latitude * 1000)) # Stable randomness
-    
-    # Simulate finding nearby OSM junctions
-    offsets = [
-        (0.005, 0.003, "Main Gate Junction"),
-        (-0.003, 0.005, "North Exit Road"),
-        (0.002, -0.004, "East Corridor"),
-        (-0.004, -0.002, "South Bypass"),
-        (0.006, -0.001, "Outer Ring Connect")
-    ]
-    
-    high_risk = []
-    for i, (dlat, dlng, name) in enumerate(offsets):
-        if i >= 5: break
-        risk_score = min(1.0, (total_incidents / 20.0) + np.random.uniform(0.05, 0.2))
-        high_risk.append({
-            "name": name,
-            "lat": latitude + dlat,
-            "lng": longitude + dlng,
-            "risk_score": round(risk_score, 2)
-        })
-        
-    # Sort by highest risk first
-    high_risk = sorted(high_risk, key=lambda x: x['risk_score'], reverse=True)
-    return high_risk
+
 
 def get_phase_timeline(total_incidents: int, start_time: str, duration_hours: float) -> list:
     """Returns hourly incident counts for plotting timelines"""
@@ -273,11 +248,17 @@ def get_historical_replay(event_id: str) -> dict:
     actual_exodus = int(row['exodus_incidents'])
 
     # Rebuild a fake start_time from hour + day_of_week for prediction
-    # Use a fixed reference date and inject the event's hour
-    from datetime import datetime, timedelta
-    base_date = datetime(2024, 3, 4)  # Monday
+    # Use a dynamic date based on the current date that matches the day of the week
+    import datetime
+    today = datetime.datetime.now()
     days_offset = int(row['day_of_week'])
-    start_dt = base_date + timedelta(days=days_offset)
+    
+    # Find how many days ago this day of the week occurred
+    days_ago = (today.weekday() - days_offset) % 7
+    if days_ago == 0:
+        days_ago = 7  # ensure it's in the past (1 week ago) if it's the same day
+
+    start_dt = today - datetime.timedelta(days=days_ago)
     start_time_str = start_dt.strftime('%Y-%m-%d') + f" {int(row['hour']):02d}:00:00"
 
     predicted_result = predict_event_impact(
@@ -389,10 +370,6 @@ def get_tactical_recommendation(
     Core PS deliverable: Compute manpower deployment, road barricading,
     and diversion routing based on predicted event impact.
     """
-    if G is not None and latitude is not None and longitude is not None:
-        graph_risk = sim.get_high_risk_junctions_graph(G, latitude, longitude, total_incidents)
-        if graph_risk:
-            high_risk_junctions = graph_risk
 
     num_junctions = len(high_risk_junctions)
     traffic_police = max(4, int(2 + num_junctions * 3 + total_incidents * 0.25))

@@ -160,7 +160,8 @@ def get_high_risk_junctions_graph(G, lat, lng, total_incidents, max_junctions=5,
         if len(subgraph) < 3:
             return []
 
-        centrality = nx.edge_betweenness_centrality(subgraph, weight='travel_time')
+        k_val = min(30, len(subgraph.nodes))
+        centrality = nx.edge_betweenness_centrality(subgraph, weight='travel_time', k=k_val)
         risk_candidates = []
         seen_names = set()
 
@@ -231,7 +232,6 @@ def get_diversion_plan(G, event_lat, event_lng, high_risk_junctions, num_routes=
 
     try:
         origin = find_nearest_node(G, event_lat, event_lng)
-        G_penalized = G.copy()
         blocked_edges = []
         for junction in high_risk_junctions[:num_routes]:
             if all(key in junction for key in ("u", "v", "key")):
@@ -240,11 +240,15 @@ def get_diversion_plan(G, event_lat, event_lng, high_risk_junctions, num_routes=
         if not blocked_edges:
             return []
 
+        # Temporarily penalize weights to avoid copying the huge graph
+        original_weights = {}
         for u, v, k in blocked_edges:
-            if G_penalized.has_edge(u, v, key=k):
-                G_penalized[u][v][k]["travel_time"] = G_penalized[u][v][k].get("travel_time", 1.0) * 8.0
-            if G_penalized.has_edge(v, u, key=k):
-                G_penalized[v][u][k]["travel_time"] = G_penalized[v][u][k].get("travel_time", 1.0) * 8.0
+            if G.has_edge(u, v, key=k):
+                original_weights[(u, v, k)] = G[u][v][k].get("travel_time", 1.0)
+                G[u][v][k]["travel_time"] = original_weights[(u, v, k)] * 8.0
+            if G.has_edge(v, u, key=k):
+                original_weights[(v, u, k)] = G[v][u][k].get("travel_time", 1.0)
+                G[v][u][k]["travel_time"] = original_weights[(v, u, k)] * 8.0
 
         diversion_plan = []
         seen_targets = set()
@@ -254,22 +258,34 @@ def get_diversion_plan(G, event_lat, event_lng, high_risk_junctions, num_routes=
                 continue
             seen_targets.add(target)
 
+            # Compute original path
+            primary_path = nx.shortest_path(G, origin, target, weight='travel_time')
+            
+            # Penalize
+            original_weights = {}
+            for u, v, k in blocked_edges:
+                if G.has_edge(u, v, key=k):
+                    original_weights[(u, v, k)] = G[u][v][k].get("travel_time", 1.0)
+                    G[u][v][k]["travel_time"] = original_weights[(u, v, k)] * 8.0
+
             try:
-                primary_path = nx.shortest_path(G, origin, target, weight='travel_time')
-                detour_path = nx.shortest_path(G_penalized, origin, target, weight='travel_time')
-            except nx.NetworkXNoPath:
-                continue
+                detour_path = nx.shortest_path(G, origin, target, weight='travel_time')
+            finally:
+                # Restore
+                for edge, weight in original_weights.items():
+                    u, v, k = edge
+                    G[u][v][k]["travel_time"] = weight
 
             if primary_path == detour_path or len(detour_path) < 2:
                 continue
 
             primary_names = _path_road_names(G, primary_path)
-            detour_names = _path_road_names(G_penalized, detour_path)
+            detour_names = _path_road_names(G, detour_path)
             if not primary_names or not detour_names:
                 continue
 
             travel_primary = _path_travel_time(G, primary_path)
-            travel_detour = _path_travel_time(G_penalized, detour_path)
+            travel_detour = _path_travel_time(G, detour_path)
             added_minutes = max(1, int(round((travel_detour - travel_primary) / 60)))
 
             diversion_plan.append({
@@ -286,8 +302,19 @@ def get_diversion_plan(G, event_lat, event_lng, high_risk_junctions, num_routes=
             if len(diversion_plan) >= num_routes:
                 break
 
+        # Restore original weights
+        for edge, weight in original_weights.items():
+            u, v, k = edge
+            G[u][v][k]["travel_time"] = weight
+
         return diversion_plan
     except Exception as e:
+        # Attempt to restore original weights on error
+        if 'original_weights' in locals():
+            for edge, weight in original_weights.items():
+                u, v, k = edge
+                if G.has_edge(u, v, key=k):
+                    G[u][v][k]["travel_time"] = weight
         print(f"Error building graph diversion plan: {e}")
         return []
 
@@ -363,22 +390,24 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
         # Mock 2 hospitals by picking nodes from the graph if no real ones found
         random.seed(101)  # Fixed seed for consistent routes
         
-        # Build a temporary copy of the graph with penalized blockade edges if provided
-        G_detour = G.copy()
+        # We will dynamically penalize edges instead of copying G
+        original_weights = {}
         if blockade_edges:
             for u, v in blockade_edges:
-                if G_detour.has_edge(u, v):
-                    for k in G_detour[u][v]:
-                        G_detour[u][v][k]['travel_time'] = G_detour[u][v][k].get('travel_time', 1.0) * 10.0
-                if G_detour.has_edge(v, u):
-                    for k in G_detour[v][u]:
-                        G_detour[v][u][k]['travel_time'] = G_detour[v][u][k].get('travel_time', 1.0) * 10.0
+                if G.has_edge(u, v):
+                    for k in G[u][v]:
+                        original_weights[(u, v, k)] = G[u][v][k].get('travel_time', 1.0)
+                if G.has_edge(v, u):
+                    for k in G[v][u]:
+                        original_weights[(v, u, k)] = G[v][u][k].get('travel_time', 1.0)
 
         targets = []
         try:
-            # Search within 8km which is large enough to cover the city but fast enough not to hang
+            import osmnx as ox
+            ox.settings.timeout = 2
+            # Search within 3km to prevent hanging on external Overpass API calls
             tags = {"amenity": ["hospital", "police", "fire_station"]}
-            gdf = ox.features_from_point((lat, lng), tags, dist=8000)
+            gdf = ox.features_from_point((lat, lng), tags, dist=3000)
             
             if not gdf.empty:
                 for idx, row in gdf.iterrows():
@@ -425,26 +454,26 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
                 (fire_node, "Central Fire Station (Mock)", "fire_station")
             ]
 
-        # Pre-compute all shortest paths from the center node
-        try:
-            _, paths_primary = nx.single_source_dijkstra(G, center_node, weight='travel_time')
-            _, paths_detour = nx.single_source_dijkstra(G_detour, center_node, weight='travel_time')
-        except Exception as e:
-            print(f"Failed to precompute paths: {e}")
-            paths_primary, paths_detour = {}, {}
-
         for target_node, target_name, amenity in final_targets:
             try:
                 # Find primary shortest path
-                if target_node not in paths_primary:
-                    continue # Node is unreachable in this graph
-                path_nodes_primary = paths_primary[target_node]
+                path_nodes_primary = nx.shortest_path(G, center_node, target_node, weight='travel_time')
                 path_coords_primary = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in path_nodes_primary]
                 
-                # Find detour shortest path (with heavily penalized blockades)
-                if target_node not in paths_detour:
-                    continue
-                path_nodes_detour = paths_detour[target_node]
+                # Temporarily penalize graph
+                for edge, weight in original_weights.items():
+                    u, v, k = edge
+                    G[u][v][k]['travel_time'] = weight * 10.0
+                    
+                try:
+                    # Find detour shortest path
+                    path_nodes_detour = nx.shortest_path(G, center_node, target_node, weight='travel_time')
+                finally:
+                    # Restore graph
+                    for edge, weight in original_weights.items():
+                        u, v, k = edge
+                        G[u][v][k]['travel_time'] = weight
+
                 path_coords_detour = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in path_nodes_detour]
 
                 # Prepend the actual pin location to ensure routes visually start from the pin

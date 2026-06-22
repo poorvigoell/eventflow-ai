@@ -12,7 +12,7 @@ rl_training_lock = threading.Lock()
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from models.predict import predict_event_impact, get_economic_impact, get_tactical_recommendation, get_dispatch_recommendation, get_phase_timeline, predict_multi_event, get_high_risk_junctions
+from models.predict import predict_event_impact, get_economic_impact, get_tactical_recommendation, get_dispatch_recommendation, get_phase_timeline, predict_multi_event
 from utils.traffic_signals import get_signal_recommendations
 from graph.simulator import get_high_risk_junctions_graph, get_critical_roads, get_emergency_routes, get_diversion_plan, get_barricade_recommendations, get_major_roads, get_transit_infrastructure
 from utils.dispersal_sim import simulate_dispersal
@@ -135,7 +135,8 @@ def predict_event(request: EventRequest):
         longitude=request.longitude,
         zone=request.zone,
         start_time=request.start_time,
-        duration_hours=request.duration_hours
+        duration_hours=request.duration_hours,
+        G=G
     )
     
     # Handle multi-event
@@ -161,13 +162,8 @@ def predict_event(request: EventRequest):
         pred['total_incidents'] = int(pred['total_incidents'] * 1.5)
         pred['confidence'] = 0.65
         
-    # 2. Graph routing for High Risk
-    if G:
-        high_risk = get_high_risk_junctions_graph(G, request.latitude, request.longitude, pred['total_incidents'], radius=1000)
-    else:
-        high_risk = []
-        
-    pred['high_risk_junctions'] = high_risk
+    # 2. Extract High Risk from prediction
+    high_risk = pred.get('high_risk_junctions', [])
     
     # 3. Tactical Plan
     tactical = get_tactical_recommendation(
