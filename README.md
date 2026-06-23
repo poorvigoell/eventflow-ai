@@ -4,57 +4,35 @@ EventFlow is a full-stack, AI-powered urban traffic prediction and management pl
 
 ## Key Features
 
-### Predictive Analytics
-- **XGBoost 3-Phase Prediction** trained on real anonymised Bengaluru event-incident data
-- Decomposes predictions into **Inflow → Steady → Exodus** phases with per-phase peak hours
-- 12 engineered features including cyclical time encoding (`hour_sin`, `hour_cos`), rush-hour flag, and weekend flag
-- Confidence score and feature importance displayed per prediction
+### Crowd Dispersal Kinematics & Geospatial Heatmapping
+- The `dispersal_sim.py` module computes the nearest NetworkX edge based on the venue's Haversine coordinates and executes shortest-path radial traversals (via Dijkstra) outward up to a 3km maximum threshold. It mathematically simulates human kinematics by projecting movement at a constant 3 km/h (0.05 km/min). Density is modeled via an active temporal exponential decay function `e^(-λt)` applied to the absolute crowd size, tapering the density metric as time increments. It packages these localized high-density coordinate payloads and broadcasts them to the React frontend, where `React-Leaflet` maps them into a fluid HeatmapLayer over time.
 
-### Live Traffic Dashboard
-- Interactive **Leaflet map** with dark CartoDB tiles and event venue pin
-- **TomTom Live Traffic overlay** — fetches real-time speed and congestion for the 5 nearest arterial roads, rendered as colour-coded dashed polylines (free / moderate / congested)
-- **30-minute client-side cache** for all live traffic and prediction data — survives page reloads without redundant API calls
-- **Emergency Hospital Route Toggle** — show/hide NHS hospital routing overlays on the live map
+### Economic Scoring & Logistic Mode Split
+- The `economic_scorer.py` computes a normalized `0.0` to `1.0` float by fusing two vectors: an intrinsic event baseline weight (e.g., VIP movements = 0.9, Protests = 0.2) and a spatial geospatial modifier generated via OSMnx point-of-interest mapping (e.g., proximity to tech parks acts as a positive scalar). Based on this final float, the algorithm segments the crowd volume into "Premium", "Middle", and "Mass" bins using hard thresholds. These bins act as probability modifiers to calculate the exact percentage split for likely transport modes, dynamically weighting the pressure on local Metro stations versus arterial road cab bottlenecks.
 
-### Tactical Response Planning
-- Automated manpower deployment planner using **OSMnx edge betweenness centrality** to identify the top 5 critical junctions
-- Auto-computes exact counts of police, patrol vehicles, ambulances, tow trucks, and barricade teams scaled to predicted severity
-- Barricade protocol with timed deployment orders
-- Diversion routing via **penalised Dijkstra** (8× travel time on high-risk edges)
+### Causal Data Synthetic Augmentation (Unconfoundedness Injection)
+- Because true randomized control trials (RCTs) are impossible in live traffic, `augment_causal_data.py` synthetically retrofits the historical dataset. It uses logit-based probabilities to simulate "treatment assignments" (like deploying barricades). Crucially, it purposefully injects unobserved confounders to mimic real-world police deployment bias (e.g., forcing a high mathematical probability that severe, high-priority events receive barricades, while minor events do not). A `ColumnTransformer` preprocessing pipeline then normalizes this data to mathematically enforce the **Strict Unconfoundedness** assumption required by the T-Learner architecture.
 
-### Adaptive Signal Control
-- **Webster Formula baseline** — computes optimal static green splits using `g_i = (y_i / Y) × (C - L)` for all predicted high-risk junctions
-- **Adaptive AI Engine** — automatically selects the best controller for each scenario:
-  - **Single-Agent RL (PPO)** for localised, single-junction congestion — fast, focused signal adjustment
-  - **MARL Cooperative Network** for multi-junction cascading gridlock — 5 independent agents communicate via message-passing to coordinate across the road network
-- Real-time **Agent Communication Network** graph visualisation with live queue pressure rings
-- Per-agent junction cards showing green time, queue length, and adjustment delta
+### Penalized Dijkstra Routing for Diversions
+- When an event triggers a tactical plan, the backend queries the OSMnx/NetworkX graph of the Bengaluru road network. Rather than finding the shortest geometric path, it executes a **Penalized Dijkstra** algorithm. It actively identifies the specific edges (roads) inside the predicted "Impact Zone" and artificially multiplies their travel-time weights by an `8x` scalar penalty. When the shortest-path algorithm runs, it mathematically naturally routes *around* the inflated edges, automatically generating safe, optimal diversion paths that completely bypass the predicted gridlock epicenter.
 
-### Post-Event Causal Autopsy
-- **Do-Calculus T-Learner** (Microsoft EconML) computes the **Individual Treatment Effect (ITE)** of each tactical deployment
-- Isolates exactly how many minutes barricades and diversions saved (or cost), controlling for confounders: event priority, event type, time of day, and location
-- Trained on synthetically augmented causal dataset generated from the same real Bengaluru data — capped to realistic clearance times to prevent extreme predictions
-- Works on both resolved live anomalies and historical mock events
+### Predictive Analytics & Feature Engineering
+- Powered by an XGBoost 3-Phase Prediction engine trained on real anonymized Bengaluru event-incident data. It automatically decomposes predictions into **Inflow → Steady → Exodus** phases with per-phase peak hours utilizing 12 engineered features including cyclical time encoding (`hour_sin`, `hour_cos`), rush-hour flags, and weekend flags.
 
-### Crowd Dispersal Simulation
-- Monte Carlo heatmap snapshots at 5-minute intervals post-event
-- Timeline scrubber to watch crowd density decay toward metro stations, bus stops, and parking facilities
-- Economic segment analysis and transport mode split (metro vs. cab)
+### Adaptive Signal Control (Webster & MARL)
+- The system utilizes a Webster Formula baseline (`g_i = (y_i / Y) × (C - L)`) to compute optimal static green splits. For dynamic routing, an Adaptive AI Engine automatically boots either a Single-Agent RL (PPO) for localized congestion, or a **MARL Cooperative Network** for multi-junction cascading gridlock—where 5 independent agents communicate via a decentralized partially observable Markov decision process (Dec-POMDP) to coordinate network-wide signal phases.
 
-### Real-Time Anomaly Alerts
-- WebSocket broadcast of live traffic anomalies to all connected clients simultaneously
-- **Simulate Chaos** button — inject random accidents and emergency events in real-time
-- Emergency ETA calculations for ambulances, fire trucks, and police based on jam factors
-- Graph-based emergency routing via OSMnx from nearest hospital/station to venue
+### Real-Time Anomaly Alerts & AI Operator
+- WebSockets aggressively broadcast live traffic anomalies to all connected clients. A Groq-powered LLM agent (LLaMA 3.3 70B) with tool-calling capabilities (geocode, analyze event, trigger anomaly) streams results via Server-Sent Events (SSE), dynamically mutating the React state so the map, KPIs, and prediction data update live as the AI executes context-aware commands.
 
-### AI Operator (Natural Language)
-- Groq-powered LLM agent (LLaMA 3.3 70B) with tool-calling: geocode, analyse event, trigger anomaly
-- Streams results via Server-Sent Events (SSE) — the map, KPIs, and prediction data update live as the AI executes
-- Multi-turn conversation with full history tracking
+### The Autonomous RL Feedback Loop (Continuous Online Learning)
+- Once the `EconML` T-Learner calculates the exact Individual Treatment Effect (ITE) of a resolved incident, the FastAPI backend instantly spawns an asynchronous `BackgroundTask`. This thread acquires a strict mutual-exclusion `threading.Lock` to prevent database race conditions and silently boots a headless `EventFlowEnv` Gymnasium environment. It executes a targeted Proximal Policy Optimization (PPO) micro-training session where the ITE mathematical output directly overrides the agent's reward penalty function. The newly optimized weights are then hot-swapped and permanently saved into the active `ppo_eventflow.zip` checkpoint. This enables true **Continuous Online Learning** without ever disrupting the live WebSocket server.
 
-### Digital Twin
-- Side-by-side ML Predicted vs. Ground Truth map comparison
-- Assesses historical model accuracy on resolved incidents
+### Algorithmic Client-Side Raster Manipulation (`FilteredTrafficLayer`)
+- Instead of blindly rendering TomTom API map tiles, the React frontend intercepts the raw raster images and passes them through an HTML5 `<canvas>` manipulation pipeline. The `FilteredTrafficLayer` utilizes `getImageData()` to mathematically iterate over the `Uint8ClampedArray` (RGBA matrix) of every single tile. It executes a strict algorithmic filter (`g > 80 && g > r * 1.3 && g > b * 1.3`) to identify and strip out pixels where green dominates (free-flowing traffic). By converting these specific pixels to an alpha-0 transparency, the CartoDB dark basemap is allowed to bleed through, ensuring the UI *only* highlights active congestion (orange/red anomalies) to dramatically reduce cognitive load.
+
+### Asynchronous Paced Tile Queuing (Strict Rate Limiting)
+- Because Leaflet aggressively fetches 15-20 tiles simultaneously during a map pan, it easily triggers `HTTP 429 Too Many Requests` API lockouts from TomTom's 5 QPS (Queries Per Second) limit. To bypass this, the frontend utilizes a custom `tileQueue` manager. It decouples Leaflet’s render cycle from the actual network stack, pushing all tile requests into an async array. The processing loop utilizes JavaScript `Promises` and `await new Promise(r => setTimeout(r, 250))` to enforce a mathematically perfect, absolute ceiling of **4 Requests Per Second**. If a request still fails, the custom `ThrottledTrafficLayer` silently resolves an empty transparent canvas instead of throwing a broken DOM `<img>` icon.
 
 ---
 
@@ -63,17 +41,17 @@ EventFlow is a full-stack, AI-powered urban traffic prediction and management pl
 | Layer | Technology |
 |---|---|
 | Frontend | React 18 + Vite |
-| Maps | React-Leaflet + CartoDB Dark Tiles |
+| Maps | React-Leaflet + CartoDB Dark Tiles + HTML5 Canvas |
 | Charts | Recharts |
 | Backend | FastAPI + Uvicorn (Python) |
 | ML — Prediction | XGBoost / GradientBoostingRegressor |
-| ML — Causal Inference | Custom T-Learner (GradientBoostingRegressor) |
+| ML — Causal Inference | Do-Calculus T-Learner (Microsoft EconML) |
 | RL — Single Agent | Stable-Baselines3 PPO + Gymnasium |
-| RL — MARL | Custom multi-agent PPO with message-passing |
+| RL — MARL | Custom Dec-POMDP multi-agent PPO with message-passing |
 | Graph Engine | OSMnx + NetworkX |
-| Live Traffic | TomTom Traffic Flow API |
+| Live Traffic | TomTom Traffic Flow API (with Custom Paced Queue) |
 | LLM | Groq Cloud (LLaMA 3.3 70B) |
-| Real-Time | WebSockets |
+| Real-Time | WebSockets + Server-Sent Events (SSE) |
 
 ---
 
