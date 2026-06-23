@@ -36,12 +36,12 @@ const InfoTooltip = ({ text, alignRight = false }) => (
   </div>
 );
 
-export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat, setGlobalLng, setGlobalEventType, setActiveAnalysisSource, handleTabChange }) => {
+export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat, setGlobalLng, setGlobalShowPin, setGlobalEventType, setActiveAnalysisSource, activeAnalysisSource, handleTabChange }) => {
   const [internalLoading, setInternalLoading] = useState(false);
+  const [toast, setToast] = useState(null);
 
-  // Restore from 30-min cache on first render
-  const [cachedLive] = useState(() => readLiveCache());
-
+  const cachedLive = readLiveCache();
+  
   // Local state — isolated from the prediction dashboard
   const [localData, setLocalData] = useState(cachedLive?.localData ?? null);
   const [localLoading, setLocalLoading] = useState(false);
@@ -50,6 +50,15 @@ export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat
   const [localShowPin, setLocalShowPin] = useState(cachedLive?.localShowPin ?? false);
   const [localLocationName, setLocalLocationName] = useState(cachedLive?.localLocationName ?? '');
   const [showEmergencyRoutes, setShowEmergencyRoutes] = useState(cachedLive?.showEmergencyRoutes ?? true);
+
+  // Clear live traffic pin when prediction setup becomes the active source
+  useEffect(() => {
+    if (activeAnalysisSource === 'prediction_setup') {
+      setLocalShowPin(false);
+      setLocalData(null);
+      setLocalLocationName('');
+    }
+  }, [activeAnalysisSource]);
 
   // Save local state to cache whenever it changes
   useEffect(() => {
@@ -93,6 +102,12 @@ export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat
   const analyzeLiveAnomaly = async (anomaly) => {
     const safeLat = parseFloat(anomaly.latitude) || 12.9716;
     const safeLng = parseFloat(anomaly.longitude) || 77.5946;
+
+    // Immediately update global state to clear Prediction Setup map and pin
+    if (setActiveAnalysisSource) setActiveAnalysisSource('alerts_tab');
+    if (setGlobalShowPin) setGlobalShowPin(false);
+    if (setGlobalData) setGlobalData(null);
+
     setLocalLoading(true);
     setLocalData(null);
     setLocalLat(safeLat);
@@ -116,10 +131,10 @@ export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat
       
       // Update global context so other tabs (Tactical, Signals, Dispersal) get this data
       if (setGlobalData) setGlobalData(response.data);
+      // We purposefully DO NOT setGlobalShowPin(true) here because the Prediction Setup pin should stay hidden
       if (setGlobalLat) setGlobalLat(safeLat);
       if (setGlobalLng) setGlobalLng(safeLng);
       if (setGlobalEventType) setGlobalEventType(anomaly.accident_reported ? "accident" : "gridlock");
-      if (setActiveAnalysisSource) setActiveAnalysisSource('alerts_tab');
 
     } catch (e) {
       console.error(e);

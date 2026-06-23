@@ -373,229 +373,202 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
     </>
   );
 
-  // If no prediction data is available, render the initial clean state
-  if (!predictionData) {
-    return (
-      <div style={{ height: '100%' }}>
-        <MapContainer
-          center={safeCenter(lat, lng)}
-          zoom={12}
-          style={{ height: '100%', width: '100%', backgroundColor: '#111' }}
-          className="z-0"
-          zoomControl={false}
-          maxBounds={BENGALURU_BOUNDS}
-          minZoom={10}
-        >
-          <ZoomControl position="bottomright" />
-          <TileLayer
-            url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
-          />
-          {isLiveTrafficMode && (
+  // Active prediction state
+  const radius = predictionData ? predictionData.total_incidents * 15 : 0;
+
+  return (
+    <div style={{ height: '100%', width: '100%' }}>
+      <MapContainer
+        center={safeCenter(lat, lng)}
+        zoom={predictionData ? 14 : 12}
+        style={{ height: '100%', width: '100%', backgroundColor: '#111' }}
+        className="z-0"
+        zoomControl={false}
+        maxBounds={BENGALURU_BOUNDS}
+        minZoom={10}
+      >
+        <MapSizeInvalidator />
+        {/* Controller to handle focus events using the map instance */}
+        <OverlayController overlayItemsRef={overlayItemsRef} />
+        <ZoomControl position="bottomright" />
+        <TileLayer
+          url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
+        />
+        
+        {isLiveTrafficMode && (
+          predictionData ? <FilteredTrafficLayer /> : (
             <TileLayer
               url="https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=ORWaElJompOORRkCLxk13gC3ZHZaKsWN"
               attribution='&copy; TomTom Traffic'
               opacity={0.8}
               bounds={BENGALURU_BOUNDS}
             />
-          )}
-          <MapAutoZoom lat={lat} lng={lng} predictionData={predictionData} />
-          {renderCommonElements()}
-          <Polygon
-            positions={BENGALURU_BOUNDARY_COORDS}
-            pathOptions={{ color: '#1a4d66', weight: 1.5, opacity: 0.6, dashArray: '5, 5', fill: false }}
-          >
-            <LeafletTooltip>Bengaluru Boundary</LeafletTooltip>
-          </Polygon>
-        </MapContainer>
-      </div>
-    );
-  }
+          )
+        )}
+        
+        <MapAutoZoom lat={lat} lng={lng} predictionData={predictionData} />
+        {renderCommonElements()}
 
+        {predictionData && !isLiveTrafficMode && (
+          <>
+            <Circle
+              center={safeCenter(lat, lng)}
+              radius={radius}
+              pathOptions={{ color: '#ff4b2b', fillColor: '#ff4b2b', fillOpacity: 0.1, weight: 2 }}
+            >
+              <LeafletTooltip>Impact Zone</LeafletTooltip>
+            </Circle>
 
+            <Circle
+              center={safeCenter(lat, lng)}
+              radius={radius * 1.5}
+              pathOptions={{ color: '#00d2ff', fillColor: 'transparent', weight: 2, dashArray: '5, 10' }}
+            >
+              <LeafletTooltip>Spillover Zone</LeafletTooltip>
+            </Circle>
 
-  // Active prediction state
-  const radius = predictionData.total_incidents * 15;
+            <DynamicRoads roads={criticalRoads} overlayVisibility={overlayVisibility} roadZoom={roadZoom} setRoadZoom={setRoadZoom} />
 
-  return (
-    <MapContainer
-      center={safeCenter(lat, lng)}
-      zoom={14}
-      style={{ height: '100%', width: '100%', backgroundColor: '#111' }}
-      zoomControl={false}
-      maxBounds={BENGALURU_BOUNDS}
-      minZoom={10}
-    >
-      <MapSizeInvalidator />
-      {/* Controller to handle focus events using the map instance */}
-      <OverlayController overlayItemsRef={overlayItemsRef} />
-      <ZoomControl position="bottomright" />
-      <TileLayer
-        url="https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="http://cartodb.com/attributions">CartoDB</a>'
-      />
-      {isLiveTrafficMode && (
-        <FilteredTrafficLayer />
-      )}
-      <MapAutoZoom lat={lat} lng={lng} predictionData={predictionData} />
-      {renderCommonElements()}
+            {(() => {
+              // Helper: remove any coordinate pair with NaN / null / 0 values
+              const sanitizePath = (path) =>
+                (path || []).filter(c =>
+                  Array.isArray(c) &&
+                  c.length === 2 &&
+                  typeof c[0] === 'number' && !isNaN(c[0]) && c[0] !== 0 &&
+                  typeof c[1] === 'number' && !isNaN(c[1]) && c[1] !== 0
+                );
 
-      {!isLiveTrafficMode && (
-        <>
-          <Circle
-            center={safeCenter(lat, lng)}
-            radius={radius}
-            pathOptions={{ color: '#ff4b2b', fillColor: '#ff4b2b', fillOpacity: 0.1, weight: 2 }}
-          >
-            <LeafletTooltip>Impact Zone</LeafletTooltip>
-          </Circle>
+              let hospIdx = 0;
+              const greenShades = ['#00e676', '#b2ff59', '#64dd17'];
+              return emergencyRoutes?.map((route, idx) => {
+                if (route.type && route.type !== 'hospital') return null;
 
-          <Circle
-            center={safeCenter(lat, lng)}
-            radius={radius * 1.5}
-            pathOptions={{ color: '#00d2ff', fillColor: 'transparent', weight: 2, dashArray: '5, 10' }}
-          >
-            <LeafletTooltip>Spillover Zone</LeafletTooltip>
-          </Circle>
+                const cleanPath = sanitizePath(route.detour_path);
+                if (cleanPath.length < 2) return null;
 
-          <DynamicRoads roads={criticalRoads} overlayVisibility={overlayVisibility} roadZoom={roadZoom} setRoadZoom={setRoadZoom} />
+                const destination = cleanPath[cleanPath.length - 1];
+                const isValidDest = destination && !isNaN(destination[0]) && !isNaN(destination[1]);
+                const showDetour = overlayVisibility ? (overlayVisibility[`em-detour-${idx}`] ?? true) : true;
+                const color = greenShades[hospIdx % greenShades.length];
+                hospIdx++;
 
-          {(() => {
-            // Helper: remove any coordinate pair with NaN / null / 0 values
-            const sanitizePath = (path) =>
-              (path || []).filter(c =>
-                Array.isArray(c) &&
-                c.length === 2 &&
-                typeof c[0] === 'number' && !isNaN(c[0]) && c[0] !== 0 &&
-                typeof c[1] === 'number' && !isNaN(c[1]) && c[1] !== 0
-              );
+                return (
+                  <React.Fragment key={`emergency-${idx}`}>
+                    {showDetour && (
+                      <Polyline
+                        positions={cleanPath}
+                        pathOptions={{ color: color, weight: 3.5, opacity: 0.9 }}
+                      >
+                        <LeafletTooltip>Emergency Route ({route.name})</LeafletTooltip>
+                      </Polyline>
+                    )}
+                  {isValidDest && (
+                    <CircleMarker
+                      center={destination}
+                      radius={6}
+                      pathOptions={{ color: '#111', fillColor: color, fillOpacity: 1, weight: 2 }}
+                    >
+                      <LeafletTooltip direction="top" permanent={false} opacity={1} className="font-bold">
+                        🏥 {route.name}
+                      </LeafletTooltip>
+                    </CircleMarker>
+                  )}
+                </React.Fragment>
+                );
+              });
+            })()}
+          </>
+        )}
 
-            let hospIdx = 0;
-            const greenShades = ['#00e676', '#b2ff59', '#64dd17'];
-            return emergencyRoutes?.map((route, idx) => {
-              if (route.type && route.type !== 'hospital') return null;
+        {/* Render external traffic from TomTom */}
+        {externalTraffic?.flow && Array.isArray(externalTraffic.flow) ? (
+          (() => {
+            const roadColors = ['#ff00ff', '#00b0ff', '#ffea00', '#ff0000', '#00ff00']; // pink, blue, yellow, red, green
+            const seenCoords = new Set();
+            let displayIdx = 0;
+            return externalTraffic.flow.map((roadFlow, roadIndex) => {
+              const flow = roadFlow?.flow;
+              const segment = flow?.flowSegmentData;
+              const coords = (segment?.coordinates?.coordinate || []);
+              const speed = segment?.currentSpeed || 0;
+              
+              if (coords.length === 0) return null;
+              
+              const positions = coords.map(c => [c.latitude, c.longitude]);
+              const coordStr = positions.flat().join(',');
+              if (seenCoords.has(coordStr)) return null;
+              seenCoords.add(coordStr);
+              
+              const lineColor = roadColors[displayIdx % roadColors.length];
+              const id = `tt-${roadIndex}`;
+              const visible = overlayVisibility ? (overlayVisibility[id] ?? true) : true;
+              displayIdx++;
 
-              const cleanPath = sanitizePath(route.detour_path);
-              if (cleanPath.length < 2) return null;
-
-              const destination = cleanPath[cleanPath.length - 1];
-              const isValidDest = destination && !isNaN(destination[0]) && !isNaN(destination[1]);
-              const showDetour = overlayVisibility ? (overlayVisibility[`em-detour-${idx}`] ?? true) : true;
-              const color = greenShades[hospIdx % greenShades.length];
-              hospIdx++;
+              if (!visible) return null;
 
               return (
-                <React.Fragment key={`emergency-${idx}`}>
-                  {showDetour && (
-                    <Polyline
-                      positions={cleanPath}
-                      pathOptions={{ color: color, weight: 3.5, opacity: 0.9 }}
-                    >
-                      <LeafletTooltip>Emergency Route ({route.name})</LeafletTooltip>
-                    </Polyline>
-                  )}
-                {isValidDest && (
-                  <CircleMarker
-                    center={destination}
-                    radius={6}
-                    pathOptions={{ color: '#111', fillColor: color, fillOpacity: 1, weight: 2 }}
+                <React.Fragment key={`tomtom-road-wrapper-${roadIndex}`}>
+                  {/* Invisible thick polyline for easy hovering */}
+                  <Polyline
+                    positions={positions}
+                    pathOptions={{ color: 'transparent', weight: 12, opacity: 0 }}
                   >
-                    <LeafletTooltip direction="top" permanent={false} opacity={1} className="font-bold">
-                      🏥 {route.name}
+                    <LeafletTooltip sticky>
+                      {roadFlow.road_name}: Speed {speed} km/h | Flow: {segment?.frc || 'N/A'}
                     </LeafletTooltip>
-                  </CircleMarker>
-                )}
-              </React.Fragment>
+                  </Polyline>
+                  {/* Visible dashed polyline */}
+                  <Polyline
+                    key={`tomtom-road-${roadIndex}`}
+                    positions={positions}
+                    pathOptions={{ color: lineColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
+                    interactive={false}
+                  />
+                </React.Fragment>
               );
             });
-          })()}
-        </>
-      )}
-
-      {/* Render external traffic from TomTom */}
-      {externalTraffic?.flow && Array.isArray(externalTraffic.flow) ? (
-        (() => {
-          const roadColors = ['#ff00ff', '#00b0ff', '#ffea00', '#ff0000', '#00ff00']; // pink, blue, yellow, red, green
-          const seenCoords = new Set();
-          let displayIdx = 0;
-          return externalTraffic.flow.map((roadFlow, roadIndex) => {
-            const flow = roadFlow?.flow;
-            const segment = flow?.flowSegmentData;
-            const coords = (segment?.coordinates?.coordinate || []);
-            const speed = segment?.currentSpeed || 0;
-            
+          })()
+        ) : externalTraffic?.flow?.flowSegmentData?.coordinates?.coordinate ? (
+          (() => {
+            const coords = externalTraffic.flow.flowSegmentData.coordinates.coordinate || [];
             if (coords.length === 0) return null;
-            
+            const speed = externalTraffic.flow.flowSegmentData?.currentSpeed || 0;
+            const speedColor = speed < 10 ? '#ff4444' : speed < 20 ? '#ffaa00' : '#44ff44';
             const positions = coords.map(c => [c.latitude, c.longitude]);
-            const coordStr = positions.flat().join(',');
-            if (seenCoords.has(coordStr)) return null;
-            seenCoords.add(coordStr);
-            
-            const lineColor = roadColors[displayIdx % roadColors.length];
-            const id = `tt-${roadIndex}`;
-            const visible = overlayVisibility ? (overlayVisibility[id] ?? true) : true;
-            displayIdx++;
-
+            const visible = overlayVisibility ? (overlayVisibility['tt-single'] ?? true) : true;
             if (!visible) return null;
-
             return (
-              <React.Fragment key={`tomtom-road-wrapper-${roadIndex}`}>
-                {/* Invisible thick polyline for easy hovering */}
+              <React.Fragment key={`tomtom-single-wrapper`}>
                 <Polyline
                   positions={positions}
                   pathOptions={{ color: 'transparent', weight: 12, opacity: 0 }}
                 >
                   <LeafletTooltip sticky>
-                    {roadFlow.road_name}: Speed {speed} km/h | Flow: {segment?.frc || 'N/A'}
+                    Speed: {speed} km/h | Flow: {externalTraffic.flow.flowSegmentData?.frc || 'N/A'}
                   </LeafletTooltip>
                 </Polyline>
-                {/* Visible dashed polyline */}
                 <Polyline
-                  key={`tomtom-road-${roadIndex}`}
+                  key={`tomtom-single`}
                   positions={positions}
-                  pathOptions={{ color: lineColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
+                  pathOptions={{ color: speedColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
                   interactive={false}
                 />
               </React.Fragment>
             );
-          });
-        })()
-      ) : externalTraffic?.flow?.flowSegmentData?.coordinates?.coordinate ? (
-        (() => {
-          const coords = externalTraffic.flow.flowSegmentData.coordinates.coordinate || [];
-          if (coords.length === 0) return null;
-          const speed = externalTraffic.flow.flowSegmentData?.currentSpeed || 0;
-          const speedColor = speed < 10 ? '#ff4444' : speed < 20 ? '#ffaa00' : '#44ff44';
-          const positions = coords.map(c => [c.latitude, c.longitude]);
-          const visible = overlayVisibility ? (overlayVisibility['tt-single'] ?? true) : true;
-          if (!visible) return null;
-          return (
-            <React.Fragment key={`tomtom-single-wrapper`}>
-              <Polyline
-                positions={positions}
-                pathOptions={{ color: 'transparent', weight: 12, opacity: 0 }}
-              >
-                <LeafletTooltip sticky>
-                  Speed: {speed} km/h | Flow: {externalTraffic.flow.flowSegmentData?.frc || 'N/A'}
-                </LeafletTooltip>
-              </Polyline>
-              <Polyline
-                key={`tomtom-single`}
-                positions={positions}
-                pathOptions={{ color: speedColor, weight: 3, opacity: 0.95, dashArray: '8, 8' }}
-                interactive={false}
-              />
-            </React.Fragment>
-          );
-        })()
-      ) : null}
+          })()
+        ) : null}
 
-      <Polygon
-        positions={BENGALURU_BOUNDARY_COORDS}
-        pathOptions={{ color: '#1a4d66', weight: 1.5, opacity: 0.4, dashArray: '5, 5', fill: false }}
-      >
-        <LeafletTooltip>Bengaluru Boundary</LeafletTooltip>
-      </Polygon>
-    </MapContainer>
+        <Polygon
+          positions={BENGALURU_BOUNDARY_COORDS}
+          pathOptions={{ color: '#1a4d66', weight: 1.5, opacity: 0.4, dashArray: '5, 5', fill: false }}
+        >
+          <LeafletTooltip>Bengaluru Boundary</LeafletTooltip>
+        </Polygon>
+      </MapContainer>
+    </div>
+  );
+}
   );
 }
