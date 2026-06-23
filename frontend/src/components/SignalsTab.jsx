@@ -3,6 +3,7 @@ import { Card } from './ui/components';
 import { Radio, Brain, Activity, Zap, Loader2, Info, Network } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { AgentNetworkGraph } from './AgentNetworkGraph';
+import { RLAgentMode } from './RLAgentMode';
 
 const AGENT_COLORS = ['#06d6a0', '#118ab2', '#ef476f', '#ffd166', '#8338ec'];
 
@@ -14,7 +15,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
   const [rlMetrics, setRlMetrics] = useState({ history: [] });
   const [isStepping, setIsStepping] = useState(false);
   const [isStartingRL, setIsStartingRL] = useState(false);
-  
+
   // MARL state
   const [marlStatus, setMarlStatus] = useState({ model_exists: false });
   const [marlSession, setMarlSession] = useState(null);
@@ -22,7 +23,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
   const [isMarlStepping, setIsMarlStepping] = useState(false);
   const [isStartingMARL, setIsStartingMARL] = useState(false);
   const [engineType, setEngineType] = useState(null);
-  
+
   const timerRef = useRef(null);
   const marlTimerRef = useRef(null);
 
@@ -33,13 +34,13 @@ export const SignalsTab = ({ signals, eventConfig }) => {
       .then(data => {
         if (data.model_exists) setMarlStatus(data);
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (marlTimerRef.current) clearInterval(marlTimerRef.current);
     };
   }, []);
-  
+
   const startRLSession = async () => {
     setIsStartingRL(true);
     try {
@@ -75,7 +76,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
       setIsStartingRL(false);
     }
   };
-  
+
   const nextStep = async () => {
     if (!rlSession) return;
     try {
@@ -85,7 +86,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
         body: JSON.stringify({ session_id: rlSession.id })
       });
       const data = await response.json();
-      
+
       if (data.actions) {
         setRlSession(prev => ({
           ...prev,
@@ -97,7 +98,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             adjustment: a.adjustment_sec
           }))
         }));
-        
+
         setRlMetrics(prev => ({
           history: [...prev.history, {
             step: data.step,
@@ -106,9 +107,9 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             crowd: data.metrics.crowd_remaining_pct
           }].slice(-30) // keep last 30 steps
         }));
-        
+
         const totalCars = data.actions.reduce((sum, a) => sum + a.queue, 0);
-        
+
         if (data.done || (totalCars < 10 && data.metrics.crowd_remaining_pct < 10)) {
           stopAutoStep();
           if (totalCars < 10 && data.metrics.crowd_remaining_pct < 10 && data.step > 0) {
@@ -123,7 +124,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
       stopAutoStep();
     }
   };
-  
+
   useEffect(() => {
     let interval = null;
     if (isStepping) {
@@ -139,7 +140,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isStepping, rlSession?.id]);
-  
+
   function stopAutoStep() {
     if (timerRef.current) clearInterval(timerRef.current);
     setIsStepping(false);
@@ -261,7 +262,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
     <div className="flex-1 max-w-6xl mx-auto space-y-6 w-full pb-10">
       <div className="flex justify-between items-center border-b border-[var(--color-border)] pb-4 mb-6">
         <h2 className="text-2xl font-bold flex items-center gap-2">
-          <Radio className="text-[var(--color-accent)]" size={28}/> Adaptive Signal Control
+          <Radio className="text-[var(--color-accent)]" size={28} /> Adaptive Signal Control
           <div className="group relative flex items-center ml-3">
             <div className="flex items-center justify-center transition duration-200 hover:scale-110">
               <Info size={18} className="text-[var(--color-accent)] cursor-help" />
@@ -271,17 +272,17 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             </div>
           </div>
         </h2>
-        
+
         {(rlStatus.model_exists || marlStatus.model_exists) && (
           <div className="flex bg-[var(--color-base)] p-1 rounded-lg">
-            <button 
+            <button
               onClick={() => setMode('webster')}
               className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${mode === 'webster' ? 'bg-[var(--color-surface-hover)] text-[var(--color-text-main)] shadow' : 'text-[var(--color-text-muted)]'}`}
             >
               <Radio size={16} /> Static (Webster)
             </button>
             {marlStatus.model_exists && (
-              <button 
+              <button
                 onClick={() => setMode('marl')}
                 className={`px-4 py-2 rounded-md text-sm font-bold flex items-center gap-2 transition-all ${mode === 'marl' ? 'bg-[var(--color-accent)] text-black shadow-md' : 'text-[var(--color-text-muted)]'}`}
               >
@@ -291,7 +292,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
           </div>
         )}
       </div>
-      
+
       {mode === 'webster' ? (
         // --- WEBSTER BASELINE MODE ---
         <>
@@ -310,17 +311,17 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                       <strong className="text-[var(--color-text-main)] font-bold">{rec.junction_name}</strong>
                       <span className="text-[var(--color-accent)] text-sm font-mono bg-[var(--color-base)] px-2 py-1 rounded">Cycle: {rec.cycle_length_sec}s</span>
                     </div>
-                    
+
                     <div className="flex h-3 rounded overflow-hidden mb-2 shadow-inner">
                       <div style={{ width: `${green_pct * 100}%`, backgroundColor: 'var(--color-accent)' }} className="shadow-lg"></div>
                       <div style={{ width: `${(1 - green_pct) * 100}%`, backgroundColor: 'var(--color-surface-hover)' }} className="shadow-inner"></div>
                     </div>
-                    
+
                     <div className="flex justify-between text-xs text-[var(--color-text-muted)] mb-3 font-mono">
                       <span className="text-[var(--color-text-main)]">Main: {rec.phase_a_green_sec}s</span>
                       <span className="text-[var(--color-text-main)] opacity-70">Cross: {rec.phase_b_green_sec}s</span>
                     </div>
-                    
+
                     <div className="text-sm text-[var(--color-text-main)] bg-[var(--color-base)] p-2 rounded border border-[var(--color-border)]">
                       {rec.recommendation}
                     </div>
@@ -333,29 +334,29 @@ export const SignalsTab = ({ signals, eventConfig }) => {
               <div className="sticky top-6">
                 <Card className="h-[500px] flex flex-col bg-[var(--color-surface)]">
                   <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xs uppercase tracking-widest text-[var(--color-text-muted)] font-bold m-0">Green Split Optimization</h3>
-                  <div className="group relative flex items-center z-50">
-                    <div className="flex items-center justify-center transition duration-200 hover:scale-110">
-                      <Info size={16} className="text-[var(--color-accent)] cursor-help" />
-                    </div>
-                    <div className="absolute top-full mt-2 right-0 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
-                      <span><strong>Formula:</strong> g<sub>i</sub> = (y<sub>i</sub> / Y) × (C - L)</span><br/><br/>
-                      Calculates the green time (g_i) for a phase by taking its flow ratio (y_i) over the total intersection flow ratio (Y), multiplied by the cycle length (C) minus lost time (L).
+                    <h3 className="text-xs uppercase tracking-widest text-[var(--color-text-muted)] font-bold m-0">Green Split Optimization</h3>
+                    <div className="group relative flex items-center z-50">
+                      <div className="flex items-center justify-center transition duration-200 hover:scale-110">
+                        <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+                      </div>
+                      <div className="absolute top-full mt-2 right-0 w-64 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
+                        <span><strong>Formula:</strong> g<sub>i</sub> = (y<sub>i</sub> / Y) × (C - L)</span><br /><br />
+                        Calculates the green time (g_i) for a phase by taking its flow ratio (y_i) over the total intersection flow ratio (Y), multiplied by the cycle length (C) minus lost time (L).
+                      </div>
                     </div>
                   </div>
-                </div>
                   <div className="flex-1 w-full relative">
                     <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                       <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
-                        <XAxis type="number" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
-                        <YAxis dataKey="name" type="category" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} width={100} />
-                        <RechartsTooltip 
+                        <XAxis type="number" stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} />
+                        <YAxis dataKey="name" type="category" stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} width={100} />
+                        <RechartsTooltip
                           cursor={false}
                           contentStyle={{ backgroundColor: 'var(--color-surface-hover)', borderColor: 'var(--color-border)' }}
                           itemStyle={{ color: 'var(--color-text-main)' }}
                         />
-                        <Legend wrapperStyle={{ fontSize: '12px' }}/>
+                        <Legend wrapperStyle={{ fontSize: '12px' }} />
                         <Bar dataKey="greenMain" name="Main Route Green (s)" stackId="a" fill="var(--color-accent)" radius={[0, 0, 0, 4]} barSize={24} />
                         <Bar dataKey="greenCross" name="Cross Route Green (s)" stackId="a" fill="rgba(255, 255, 255, 0.4)" radius={[0, 4, 4, 0]} barSize={24} />
                       </BarChart>
@@ -366,140 +367,35 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             </div>
           </div>
         </>
-      ) : mode === 'rl' ? (
-        // --- RL AGENT MODE ---
-        <div className="space-y-6 animate-fade-in">
-          <div className="bg-[var(--color-surface-hover)] border-l-4 border-[var(--color-accent)] p-4 rounded-lg shadow-xl flex justify-between items-center">
-            <div>
-              <h5 className="text-[var(--color-accent)] font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
-                <Activity size={14}/> Live RL Operator
-              </h5>
-              <p className="text-sm text-[var(--color-text-main)]">The RL Agent is actively monitoring simulated queues and adjusting green splits in real-time.</p>
-            </div>
-            
-            {!rlSession ? (
-              <button 
-                onClick={startRLSession}
-                disabled={isStartingRL}
-                className="bg-[var(--color-accent)] hover:opacity-80 text-black px-6 py-2 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isStartingRL ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16}/>}
-                {isStartingRL ? "Initializing..." : "Initialize Agent"}
-              </button>
-            ) : (
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <div className="text-xs text-[var(--color-text-muted)]">SIMULATED STEP</div>
-                  <div className="text-2xl font-mono text-[var(--color-accent)] font-bold">{rlSession.step} / 120</div>
-                </div>
-                <button 
-                  onClick={() => setIsStepping(!isStepping)}
-                  className={`px-6 py-2 rounded-lg font-bold shadow-lg transition-all ${isStepping ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-[var(--color-accent)] text-black hover:opacity-80'}`}
-                >
-                  {isStepping ? 'PAUSE' : 'RESUME'}
-                </button>
-              </div>
-            )}
-          </div>
-          
-          {rlSession && (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                {rlSession.junctions.map((j, i) => (
-                  <Card key={i} className="bg-[var(--color-surface)] border-t-4 border-t-[var(--color-accent)] relative overflow-hidden group">
-                    <div className="text-xs text-[var(--color-text-muted)] truncate mb-2">{j.name}</div>
-                    <div className="flex justify-between items-end mb-4">
-                      <div>
-                        <div className="text-3xl font-mono font-bold text-[var(--color-text-main)]">{Math.round(j.green_sec)}s</div>
-                        <div className="text-xs text-[var(--color-text-muted)]">Main Green</div>
-                      </div>
-                      <div className={`text-sm font-bold font-mono px-2 py-1 rounded ${j.adjustment > 0 ? 'bg-[var(--color-accent)]/20 text-[var(--color-accent)]' : j.adjustment < 0 ? 'bg-red-500/20 text-red-400' : 'bg-[var(--color-base)] text-[var(--color-text-muted)]'}`}>
-                        {j.adjustment > 0 ? '+' : ''}{j.adjustment}s
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4 border-t border-[var(--color-border)] pt-2">
-                      <div className="flex justify-between text-[10px] uppercase text-[var(--color-text-muted)] mb-1">
-                        <span>Queue</span>
-                        <span>{Math.round(j.queue)} veh</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-[var(--color-base)] rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all duration-1000 ${j.queue > 400 ? 'bg-red-500' : j.queue > 200 ? 'bg-yellow-500' : 'bg-[var(--color-accent)]'}`}
-                          style={{ width: `${Math.min(100, (j.queue / 600) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider m-0">Average Queue Length Over Time</h3>
-                  </div>
-                  <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                      <LineChart data={rlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                        <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
-                        <YAxis stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
-                        <RechartsTooltip 
-                          contentStyle={{ backgroundColor: 'var(--color-surface-hover)', borderColor: 'var(--color-border)' }}
-                          itemStyle={{ color: 'var(--color-text-main)' }}
-                          labelStyle={{ color: 'var(--color-text-muted)' }}
-                        />
-                        <Line type="monotone" dataKey="avg_queue" stroke="#ef4444" strokeWidth={3} dot={false} isAnimationActive={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-                
-                <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider m-0">Crowd Evacuation Progress</h3>
-                  </div>
-                  <div className="flex-1 w-full relative">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                      <LineChart data={rlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                        <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
-                        <YAxis stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} domain={[0, 100]} />
-                        <RechartsTooltip 
-                          contentStyle={{ backgroundColor: 'var(--color-surface-hover)', borderColor: 'var(--color-border)' }}
-                          itemStyle={{ color: 'var(--color-text-main)' }}
-                          labelStyle={{ color: 'var(--color-text-muted)' }}
-                        />
-                        <Line type="monotone" dataKey="crowd" stroke="var(--color-accent)" strokeWidth={3} dot={false} isAnimationActive={false} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-              </div>
-            </>
-          )}
-        </div>
+      ) : engineType === 'Single RL' ? (
+        <RLAgentMode
+          session={marlSession}
+          metrics={marlMetrics}
+          isStepping={isMarlStepping}
+          isStarting={isStartingMARL}
+          onStart={startMARLSession}
+          onToggleStepping={() => setIsMarlStepping(!isMarlStepping)}
+        />
       ) : (
         // --- MARL COOPERATIVE MODE ---
         <div className="space-y-6 animate-fade-in">
           <div className="bg-[var(--color-surface-hover)] border-l-4 border-[var(--color-accent)] p-4 rounded-lg shadow-xl flex justify-between items-center">
             <div>
               <h5 className="text-[var(--color-accent)] font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
-                <Network size={14}/> Adaptive MARL (Multi-Agent Reinforcement Learning) Agent
+                <Network size={14} /> {!marlSession ? 'Adaptive MARL (Multi-Agent Reinforcement Learning) Agent' : engineType === 'MARL Cooperative' ? 'Adaptive MARL (Multi-Agent Reinforcement Learning) Agent' : 'Adaptive Single-Agent RL Controller'}
               </h5>
               <p className="text-sm text-[var(--color-text-main)] max-w-2xl mt-1">
-                {!marlSession ? 
+                {!marlSession ?
                   "Dynamic traffic signal optimization mapped over a multi-agent network representation." :
                   engineType === 'MARL Cooperative' ?
-                  "The AI Coordinator evaluated this scenario as highly complex (high incident volume or multi-event crisis) and has deployed the Multi-Agent (MARL) Cooperative Network to manage cascading gridlock through distributed message-passing." :
-                  "The AI Coordinator evaluated this scenario as localized congestion and has deployed the high-speed Single-Agent RL model for focused, efficient traffic signal optimization."
+                    "The AI Coordinator detected a high-complexity scenario and deployed the Multi-Agent Cooperative Network to manage cascading gridlock through distributed message-passing." :
+                    "The AI Coordinator evaluated this scenario as localized congestion and has deployed the high-speed Single-Agent RL model for focused, efficient traffic signal optimization."
                 }
               </p>
             </div>
-            
+
             {!marlSession ? (
-              <button 
+              <button
                 onClick={startMARLSession}
                 disabled={isStartingMARL}
                 className="bg-[var(--color-accent)] hover:opacity-80 text-black px-6 py-2 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -510,10 +406,10 @@ export const SignalsTab = ({ signals, eventConfig }) => {
             ) : (
               <div className="flex items-center gap-4">
                 <div className="text-right">
-                  <div className="text-xs text-[var(--color-text-muted)]">COOPERATIVE STEP</div>
+                  <div className="text-xs text-[var(--color-text-muted)]">{engineType === 'MARL Cooperative' ? 'COOPERATIVE STEP' : 'RL AGENT STEP'}</div>
                   <div className="text-2xl font-mono text-[var(--color-accent)] font-bold">{marlSession.step} / 120</div>
                 </div>
-                <button 
+                <button
                   onClick={() => setIsMarlStepping(!isMarlStepping)}
                   className={`px-6 py-2 rounded-lg font-bold shadow-lg transition-all ${isMarlStepping ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/50' : 'bg-[var(--color-accent)] text-black hover:opacity-80'}`}
                 >
@@ -522,25 +418,27 @@ export const SignalsTab = ({ signals, eventConfig }) => {
               </div>
             )}
           </div>
-          
+
           {marlSession && (
             <>
               <div className="flex flex-col lg:flex-row gap-6">
-                {/* Agent Network Graph */}
-                <Card className="bg-[var(--color-surface)] flex flex-col lg:flex-[2] min-h-[400px] lg:h-[600px]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-sm font-bold text-[var(--color-accent)] uppercase tracking-wider m-0">Agent Communication Network</h3>
-                    <div className="group relative flex items-center">
-                      <Info size={16} className="text-[var(--color-accent)] cursor-help" />
-                      <div className="absolute top-full mt-2 left-0 w-72 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
-                        Each node is an independent AI agent controlling a traffic light. Dashed lines show communication links. Green pulses = coordination signals. Red pulses = congestion warnings. Ring around each node shows queue pressure.
+                {/* Agent Network Graph — only show for true MARL with inter-agent communication */}
+                {engineType === 'MARL Cooperative' && (
+                  <Card className="bg-[var(--color-surface)] flex flex-col lg:flex-[2] min-h-[400px] lg:h-[600px]">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-sm font-bold text-[var(--color-accent)] uppercase tracking-wider m-0">Agent Communication Network</h3>
+                      <div className="group relative flex items-center">
+                        <Info size={16} className="text-[var(--color-accent)] cursor-help" />
+                        <div className="absolute top-full mt-2 left-0 w-72 p-3.5 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl shadow-xl text-[13px] leading-5 text-[var(--color-text-main)] font-normal z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none normal-case tracking-normal">
+                          Each node is an independent AI agent controlling a traffic light. Dashed lines show communication links. Green pulses = coordination signals. Red pulses = congestion warnings. Ring around each node shows queue pressure.
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex-1 min-h-[320px]">
-                    <AgentNetworkGraph agents={marlSession.agents} adjacency={marlSession.adjacency} step={marlSession.step} />
-                  </div>
-                </Card>
+                    <div className="flex-1 min-h-[320px]">
+                      <AgentNetworkGraph agents={marlSession.agents} adjacency={marlSession.adjacency} step={marlSession.step} />
+                    </div>
+                  </Card>
+                )}
 
                 {/* Per-Agent Cards */}
                 <div className="flex flex-col grid-cols-1 sm:grid sm:grid-cols-2 lg:flex lg:flex-col lg:flex-[1] gap-4 lg:h-[600px] lg:overflow-y-auto lg:pr-2 custom-scrollbar">
@@ -559,7 +457,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                           {agent.adjustment_sec > 0 ? '+' : ''}{agent.adjustment_sec}s
                         </div>
                       </div>
-                      
+
                       {/* Queue */}
                       <div className="border-t border-[var(--color-border)] pt-2 mb-2">
                         <div className="flex justify-between text-[10px] uppercase text-[var(--color-text-muted)] mb-1">
@@ -567,7 +465,7 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                           <span>{Math.round(agent.queue)} veh</span>
                         </div>
                         <div className="h-1.5 w-full bg-[var(--color-base)] rounded-full overflow-hidden">
-                          <div 
+                          <div
                             className={`h-full transition-all duration-1000 ${agent.queue > 400 ? 'bg-red-500' : agent.queue > 200 ? 'bg-yellow-500' : 'bg-green-500'}`}
                             style={{ width: `${Math.min(100, (agent.queue / 600) * 100)}%` }}
                           />
@@ -594,30 +492,30 @@ export const SignalsTab = ({ signals, eventConfig }) => {
                     <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                       <LineChart data={marlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                        <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
-                        <YAxis stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
-                        <RechartsTooltip 
+                        <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} />
+                        <YAxis stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} />
+                        <RechartsTooltip
                           contentStyle={{ backgroundColor: 'var(--color-surface-hover)', borderColor: 'var(--color-border)' }}
                           itemStyle={{ color: 'var(--color-text-main)' }}
                           labelStyle={{ color: 'var(--color-text-muted)' }}
                         />
-                        {[0,1,2,3,4].map(idx => (
-                          <Line key={idx} type="monotone" dataKey={`q${idx}`} name={`Agent ${idx+1}`} stroke={AGENT_COLORS[idx]} strokeWidth={2} dot={false} isAnimationActive={false} />
+                        {[0, 1, 2, 3, 4].map(idx => (
+                          <Line key={idx} type="monotone" dataKey={`q${idx}`} name={`Agent ${idx + 1}`} stroke={AGENT_COLORS[idx]} strokeWidth={2} dot={false} isAnimationActive={false} />
                         ))}
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
                 </Card>
-                
+
                 <Card className="bg-[var(--color-surface)] h-[300px] flex flex-col overflow-visible">
                   <h3 className="text-sm font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-2">Crowd Evacuation &amp; Global Reward</h3>
                   <div className="flex-1 w-full relative">
                     <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                       <LineChart data={marlMetrics.history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                        <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
-                        <YAxis stroke="var(--color-text-muted)" tick={{fill: 'var(--color-text-muted)', fontSize: 10}} />
-                        <RechartsTooltip 
+                        <XAxis dataKey="step" stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} />
+                        <YAxis stroke="var(--color-text-muted)" tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }} />
+                        <RechartsTooltip
                           contentStyle={{ backgroundColor: 'var(--color-surface-hover)', borderColor: 'var(--color-border)' }}
                           itemStyle={{ color: 'var(--color-text-main)' }}
                           labelStyle={{ color: 'var(--color-text-muted)' }}

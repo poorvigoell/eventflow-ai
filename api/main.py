@@ -760,7 +760,7 @@ def get_ai_status():
 def start_ai_session(request: AIStartRequest):
     # Determine the model based on complexity thresholds
     use_marl = False
-    if MARL_AVAILABLE and (request.total_incidents > 150 or request.multi_event_mode):
+    if MARL_AVAILABLE and (request.total_incidents > 90 or request.multi_event_mode):
         model_path = os.path.join(os.path.dirname(__file__), "..", "rl", "checkpoints", "ppo_marl_eventflow.zip")
         if os.path.exists(model_path):
             use_marl = True

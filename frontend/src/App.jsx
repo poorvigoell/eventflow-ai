@@ -9,7 +9,7 @@ import { LandingPage } from './components/LandingPage'
 import { TabButton } from './components/ui/components'
 import { Activity, ListChecks, Radio, Route, Cpu, AlertTriangle, Bell, FileSearch } from 'lucide-react'
 
-import { LiveDashboard } from './components/LiveDashboard'
+import { PredictionDashboard } from './components/PredictionDashboard'
 import { TacticalPlan } from './components/TacticalPlan'
 
 class ErrorBoundary extends React.Component {
@@ -68,7 +68,15 @@ function App() {
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Date.now() - parsed.timestamp < CACHE_EXPIRY_MS) {
-          return parsed.state;
+          const s = parsed.state;
+          // Validate coordinates — discard cache if corrupted
+          const lat = s?.lat;
+          const lng = s?.lng;
+          if (typeof lat !== 'number' || isNaN(lat) || typeof lng !== 'number' || isNaN(lng)) {
+            localStorage.removeItem(CACHE_KEY);
+            return null;
+          }
+          return s;
         }
       }
     } catch {
@@ -76,6 +84,7 @@ function App() {
     }
     return null;
   });
+
 
   const initialHash = window.location.hash.replace('#', '')
   const validTabs = ['live', 'tactical', 'signals', 'dispersal', 'twin', 'autopsy', 'alerts']
@@ -105,9 +114,12 @@ function App() {
 
   const [activeTab, setActiveTab] = useState(startingTab)
   const activeTabRef = useRef(activeTab)
-  const [visitedTabs, setVisitedTabs] = useState([startingTab])
+  const [visitedTabs, setVisitedTabs] = useState(() => {
+    const fromCache = cachedState?.visitedTabs;
+    return fromCache ? [...new Set([startingTab, ...fromCache])] : [startingTab];
+  })
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [activeAnalysisSource, setActiveAnalysisSource] = useState(null)
+  const [activeAnalysisSource, setActiveAnalysisSource] = useState(cachedState?.activeAnalysisSource ?? null)
 
   const [anomalies, setAnomalies] = useState([])
   const [toast, setToast] = useState(null)
@@ -217,13 +229,19 @@ function App() {
   // Save to cache whenever relevant state changes
   useEffect(() => {
     const stateToCache = {
-      lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary
+      lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary,
+      data, activeAnalysisSource, visitedTabs
     };
-    localStorage.setItem(CACHE_KEY, JSON.stringify({
-      timestamp: Date.now(),
-      state: stateToCache
-    }));
-  }, [lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary]);
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        timestamp: Date.now(),
+        state: stateToCache
+      }));
+    } catch (e) {
+      // Ignore quota errors
+      console.warn('Cache write failed:', e);
+    }
+  }, [lat, lng, showPin, locationName, eventType, duration, rain, emergency, multiEvent, startTime, targetBoundary, data, activeAnalysisSource, visitedTabs]);
 
   // Fetch initial POIs on mount
   useEffect(() => {
@@ -299,7 +317,7 @@ function App() {
           {/* Live Dashboard Tab */}
           <div style={{ display: activeTab === 'live' ? 'block' : 'none' }}>
             {visitedTabs.includes('live') && (
-              <LiveDashboard
+              <PredictionDashboard
                 data={activeAnalysisSource === 'prediction_setup' ? data : null} loading={loading} setData={setData}
                 eventType={eventType} setEventType={setEventType}
                 duration={duration} setDuration={setDuration}

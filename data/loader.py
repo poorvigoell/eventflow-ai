@@ -49,8 +49,8 @@ def load_and_clean_data(csv_path):
     # Calculate duration in hours
     df['duration_hours'] = (df['end_datetime'] - df['start_datetime']).dt.total_seconds() / 3600.0
     
-    # Filter out negative durations just in case
-    df = df[df['duration_hours'] > 0]
+    # Filter out negative durations and highly unrealistic outliers (e.g., > 48 hours)
+    df = df[(df['duration_hours'] > 0) & (df['duration_hours'] <= 48)]
 
     # Assign fallback zones if zone column missing or null
     if 'zone' not in df.columns:

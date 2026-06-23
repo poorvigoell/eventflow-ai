@@ -442,39 +442,51 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
             if len(final_targets) >= 5:
                 break
                 
-        # Fallback: if absolutely nothing is found (e.g. Overpass API timeout), 
+        # Fallback: if absolutely nothing is found (e.g. Overpass API timeout),
         # we still want to show something so the UI doesn't look broken.
         if not final_targets:
-            hospital_node = random.choice(nodes)
-            police_node = random.choice(nodes)
-            fire_node = random.choice(nodes)
-            final_targets = [
-                (hospital_node, "City General Hospital (Mock)", "hospital"),
-                (police_node, "Central Police Station (Mock)", "police"),
-                (fire_node, "Central Fire Station (Mock)", "fire_station")
-            ]
+            # Only pick nodes that have valid lat/lng attributes
+            valid_nodes = [n for n in nodes if G.nodes[n].get('y') and G.nodes[n].get('x')]
+            if len(valid_nodes) >= 3:
+                hospital_node = random.choice(valid_nodes)
+                police_node = random.choice(valid_nodes)
+                fire_node = random.choice(valid_nodes)
+                final_targets = [
+                    (hospital_node, "City General Hospital (Mock)", "hospital"),
+                    (police_node, "Central Police Station (Mock)", "police"),
+                    (fire_node, "Central Fire Station (Mock)", "fire_station")
+                ]
 
         for target_node, target_name, amenity in final_targets:
             try:
                 # Find primary shortest path
                 path_nodes_primary = nx.shortest_path(G, center_node, target_node, weight='travel_time')
-                path_coords_primary = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in path_nodes_primary]
-                
-                # Temporarily penalize graph
+
+                # Temporarily penalize blockade edges to find a detour
                 for edge, weight in original_weights.items():
                     u, v, k = edge
                     G[u][v][k]['travel_time'] = weight * 10.0
-                    
+
                 try:
-                    # Find detour shortest path
                     path_nodes_detour = nx.shortest_path(G, center_node, target_node, weight='travel_time')
                 finally:
-                    # Restore graph
+                    # Always restore weights
                     for edge, weight in original_weights.items():
                         u, v, k = edge
                         G[u][v][k]['travel_time'] = weight
 
-                path_coords_detour = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in path_nodes_detour]
+                # Filter out any coordinates with NaN or zero lat/lng values
+                def _sanitize(coords):
+                    return [
+                        c for c in coords
+                        if c[0] and c[1] and not (c[0] != c[0]) and not (c[1] != c[1])
+                    ]
+
+                path_coords_primary = _sanitize([(G.nodes[n].get('y', 0), G.nodes[n].get('x', 0)) for n in path_nodes_primary])
+                path_coords_detour = _sanitize([(G.nodes[n].get('y', 0), G.nodes[n].get('x', 0)) for n in path_nodes_detour])
+
+                if len(path_coords_primary) < 2 or len(path_coords_detour) < 2:
+                    continue
 
                 # Prepend the actual pin location to ensure routes visually start from the pin
                 # (nearest_nodes snaps to nearest graph node, which may be offset)

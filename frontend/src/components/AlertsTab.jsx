@@ -1,9 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from './ui/components';
 import { AlertTriangle, Info, Bell, MapPin, Zap, RefreshCw, CarFront, Clock, CheckCircle2, ShieldAlert, Flame, Ambulance, Activity, Loader2 } from 'lucide-react';
 import axios from 'axios';
 import MapOverlay from './MapOverlay';
 import { TimelineChart } from './TimelineChart';
+
+const LIVE_CACHE_KEY = 'eventflow_live_traffic_state';
+const CACHE_EXPIRY_MS = 30 * 60 * 1000;
+
+function readLiveCache() {
+  try {
+    const raw = localStorage.getItem(LIVE_CACHE_KEY);
+    if (!raw) return null;
+    const { timestamp, state } = JSON.parse(raw);
+    if (Date.now() - timestamp >= CACHE_EXPIRY_MS) return null;
+    // Reject cache if coordinates are invalid (NaN/null) to prevent map crashes
+    const lat = state?.localLat;
+    const lng = state?.localLng;
+    if (typeof lat !== 'number' || isNaN(lat) || typeof lng !== 'number' || isNaN(lng)) return null;
+    return state;
+  } catch {}
+  return null;
+}
 
 const InfoTooltip = ({ text, alignRight = false }) => (
   <div className={`absolute ${alignRight ? 'right-4' : 'left-4'} top-4 z-50`}>
@@ -20,13 +38,30 @@ const InfoTooltip = ({ text, alignRight = false }) => (
 
 export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat, setGlobalLng, setGlobalEventType, setActiveAnalysisSource, handleTabChange }) => {
   const [internalLoading, setInternalLoading] = useState(false);
+
+  // Restore from 30-min cache on first render
+  const [cachedLive] = useState(() => readLiveCache());
+
   // Local state — isolated from the prediction dashboard
-  const [localData, setLocalData] = useState(null);
+  const [localData, setLocalData] = useState(cachedLive?.localData ?? null);
   const [localLoading, setLocalLoading] = useState(false);
-  const [localLat, setLocalLat] = useState(12.9716);
-  const [localLng, setLocalLng] = useState(77.5946);
-  const [localShowPin, setLocalShowPin] = useState(false);
-  const [localLocationName, setLocalLocationName] = useState('');
+  const [localLat, setLocalLat] = useState(cachedLive?.localLat ?? 12.9716);
+  const [localLng, setLocalLng] = useState(cachedLive?.localLng ?? 77.5946);
+  const [localShowPin, setLocalShowPin] = useState(cachedLive?.localShowPin ?? false);
+  const [localLocationName, setLocalLocationName] = useState(cachedLive?.localLocationName ?? '');
+  const [showEmergencyRoutes, setShowEmergencyRoutes] = useState(cachedLive?.showEmergencyRoutes ?? true);
+
+  // Save local state to cache whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(LIVE_CACHE_KEY, JSON.stringify({
+        timestamp: Date.now(),
+        state: { localData, localLat, localLng, localShowPin, localLocationName, showEmergencyRoutes }
+      }));
+    } catch (e) {
+      console.warn('Live cache write failed:', e);
+    }
+  }, [localData, localLat, localLng, localShowPin, localLocationName, showEmergencyRoutes]);
 
   const injectChaos = async () => {
     setInternalLoading(true);
@@ -182,6 +217,20 @@ export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat
               <MapPin className="text-[var(--color-accent)]" size={16} /> Live City Traffic Map
             </h2>
             <div className="pointer-events-auto flex items-center gap-2">
+              {localData?.emergency_routes && (
+                <label className="flex items-center gap-3 bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-4 py-2 rounded-xl cursor-pointer transition-colors shadow-2xl backdrop-blur-md group">
+                  <span className="text-xs font-bold text-[var(--color-text-main)] uppercase tracking-widest">Emergency Routing</span>
+                  <div className="relative inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={showEmergencyRoutes}
+                      onChange={(e) => setShowEmergencyRoutes(e.target.checked)}
+                    />
+                    <div className="w-8 h-4 bg-[var(--color-base)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#00e676] border border-[var(--color-border)] shadow-inner"></div>
+                  </div>
+                </label>
+              )}
               {localData ? (
                 <button 
                   onClick={() => setLocalData(null)}
@@ -209,7 +258,7 @@ export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat
               setLocationName={() => {}}
               predictionData={localData ? localData.prediction : null}
               criticalRoads={localData ? localData.critical_roads : null}
-              emergencyRoutes={localData && localData.emergency_routes ? localData.emergency_routes : null}
+              emergencyRoutes={(localData && localData.emergency_routes && showEmergencyRoutes) ? localData.emergency_routes : null}
               initialMapData={null}
               targetBoundary={null}
               setTargetBoundary={() => {}}

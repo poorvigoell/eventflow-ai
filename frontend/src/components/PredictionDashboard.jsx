@@ -45,7 +45,7 @@ const InfoTooltip = ({ text, alignRight = false }) => (
   </div>
 )
 
-export function LiveDashboard({
+export function PredictionDashboard({
   data, loading, setData,
   eventType, setEventType,
   duration, setDuration,
@@ -64,6 +64,7 @@ export function LiveDashboard({
   activeTab
 }) {
   const [showBaseline, setShowBaseline] = useState(false);
+  const [showEmergencyRoutes, setShowEmergencyRoutes] = useState(true);
   const [tomtomError, setTomtomError] = useState('');
 
   // AI Operator States
@@ -382,7 +383,7 @@ export function LiveDashboard({
             <MapIcon className="text-[var(--color-accent)]" size={16} /> Live Dispatch Map
           </h2>
           <div className="flex items-center gap-3 pointer-events-auto">
-            <div className="flex flex-col gap-3 w-full">
+            <div className="flex flex-col gap-3 w-full sm:flex-row">
               <label className="flex items-center justify-between gap-3 bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-4 py-3 rounded-xl cursor-pointer transition-colors shadow-2xl backdrop-blur-md group">
                 <div className="flex flex-col">
                   <span className="text-xs font-bold text-[var(--color-text-main)] uppercase tracking-widest mb-1">Current Traffic Baseline</span>
@@ -398,6 +399,24 @@ export function LiveDashboard({
                   <div className="w-9 h-5 bg-[var(--color-base)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--color-accent)] border border-[var(--color-border)] shadow-inner"></div>
                 </div>
               </label>
+
+              {emergency && data?.emergency_routes && (
+                <label className="flex items-center justify-between gap-3 bg-[var(--color-surface)]/80 hover:bg-[var(--color-surface-hover)] border border-[var(--color-border)] px-4 py-3 rounded-xl cursor-pointer transition-colors shadow-2xl backdrop-blur-md group">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-bold text-[var(--color-text-main)] uppercase tracking-widest mb-1">Emergency Routing</span>
+                    <span className="text-[10px] text-[var(--color-text-muted)] group-hover:text-[var(--color-text-main)] transition-colors">Toggle hospital routes</span>
+                  </div>
+                  <div className="relative inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={showEmergencyRoutes}
+                      onChange={(e) => setShowEmergencyRoutes(e.target.checked)}
+                    />
+                    <div className="w-9 h-5 bg-[var(--color-base)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00e676] border border-[var(--color-border)] shadow-inner"></div>
+                  </div>
+                </label>
+              )}
             </div>
 
             <button
@@ -428,7 +447,7 @@ export function LiveDashboard({
             setLocationName={(name) => { setLocationName(name); setShowPin(true); }}
             predictionData={data ? data.prediction : null}
             criticalRoads={data ? data.critical_roads : null}
-            emergencyRoutes={emergency && data ? data.emergency_routes : null}
+            emergencyRoutes={(emergency && showEmergencyRoutes && data) ? data.emergency_routes : null}
             initialMapData={initialMapData}
             targetBoundary={targetBoundary}
             setTargetBoundary={setTargetBoundary}

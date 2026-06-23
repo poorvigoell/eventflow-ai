@@ -55,15 +55,33 @@ function MapSizeInvalidator() {
 function MapAutoZoom({ lat, lng, predictionData }) {
   const map = useMap();
   useEffect(() => {
-    if (lat && lng) {
-      // Zoom in tight to 16 to clearly see the pin and the analysis area
-      map.flyTo([lat, lng], 16, { duration: 1.5 });
+    const safeLat = (typeof lat === 'number' && !isNaN(lat) && isFinite(lat)) ? lat : null;
+    const safeLng = (typeof lng === 'number' && !isNaN(lng) && isFinite(lng)) ? lng : null;
+    if (!safeLat || !safeLng) return;
+    try {
+      // Use setView instead of flyTo to prevent React 18 StrictMode double-invocation 
+      // from corrupting Leaflet's animation state and throwing (NaN, NaN)
+      map.setView([safeLat, safeLng], 16);
+    } catch (e) {
+      console.warn('MapAutoZoom setView failed:', e);
     }
   }, [lat, lng, predictionData, map]);
   return null;
 }
 
-// Restrict panning and zooming out to Bengaluru metropolitan area
+// Global coordinate sanity check — reused throughout this file
+const isValidCoord = (c) =>
+  Array.isArray(c) && c.length === 2 &&
+  typeof c[0] === 'number' && !isNaN(c[0]) && c[0] !== 0 &&
+  typeof c[1] === 'number' && !isNaN(c[1]) && c[1] !== 0;
+
+const sanitizeCoords = (coords) => (coords || []).filter(isValidCoord);
+
+const safeCenter = (lat, lng) => {
+  const safeLat = (typeof lat === 'number' && !isNaN(lat) && lat !== 0) ? lat : 12.9788;
+  const safeLng = (typeof lng === 'number' && !isNaN(lng) && lng !== 0) ? lng : 77.5996;
+  return [safeLat, safeLng];
+};
 const BENGALURU_BOUNDS = [
   [12.6, 77.3], // SouthWest corner
   [13.3, 77.8]  // NorthEast corner
@@ -159,6 +177,8 @@ function DynamicRoads({ roads, overlayVisibility, roadZoom, setRoadZoom }) {
       {roads?.map((road, idx) => {
         const visible = overlayVisibility ? (overlayVisibility[`risk-${idx}`] ?? true) : true;
         if (!visible) return null;
+        const safePositions = sanitizeCoords(road.coordinates);
+        if (safePositions.length < 2) return null;
         const baseWeight = Math.max(2, (road.weight || 1) * 1.5);
         const scaledWeight = Math.min(14, Math.max(2.5, Math.round(baseWeight * Math.pow(1.15, roadZoom - 12))));
         
@@ -169,7 +189,7 @@ function DynamicRoads({ roads, overlayVisibility, roadZoom, setRoadZoom }) {
         return (
           <Polyline
             key={idx}
-            positions={road.coordinates}
+            positions={safePositions}
             pathOptions={{
               color: roadColor,
               weight: scaledWeight,
@@ -316,7 +336,7 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
     return () => window.removeEventListener('overlayVisibilityChange', handler);
   }, []);
 
-  // Listen for external traffic payloads (dispatched by LiveDashboard)
+  // Listen for external traffic payloads (dispatched by PredictionDashboard)
   useEffect(() => {
     const handler = (e) => {
       setExternalTraffic(e.detail || null);
@@ -358,7 +378,7 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
     return (
       <div style={{ height: '100%' }}>
         <MapContainer
-          center={[lat, lng]}
+          center={safeCenter(lat, lng)}
           zoom={12}
           style={{ height: '100%', width: '100%', backgroundColor: '#111' }}
           className="z-0"
@@ -399,7 +419,7 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
 
   return (
     <MapContainer
-      center={[lat, lng]}
+      center={safeCenter(lat, lng)}
       zoom={14}
       style={{ height: '100%', width: '100%', backgroundColor: '#111' }}
       zoomControl={false}
@@ -423,7 +443,7 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
       {!isLiveTrafficMode && (
         <>
           <Circle
-            center={[lat, lng]}
+            center={safeCenter(lat, lng)}
             radius={radius}
             pathOptions={{ color: '#ff4b2b', fillColor: '#ff4b2b', fillOpacity: 0.1, weight: 2 }}
           >
@@ -431,7 +451,7 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
           </Circle>
 
           <Circle
-            center={[lat, lng]}
+            center={safeCenter(lat, lng)}
             radius={radius * 1.5}
             pathOptions={{ color: '#00d2ff', fillColor: 'transparent', weight: 2, dashArray: '5, 10' }}
           >
@@ -441,12 +461,25 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
           <DynamicRoads roads={criticalRoads} overlayVisibility={overlayVisibility} roadZoom={roadZoom} setRoadZoom={setRoadZoom} />
 
           {(() => {
+            // Helper: remove any coordinate pair with NaN / null / 0 values
+            const sanitizePath = (path) =>
+              (path || []).filter(c =>
+                Array.isArray(c) &&
+                c.length === 2 &&
+                typeof c[0] === 'number' && !isNaN(c[0]) && c[0] !== 0 &&
+                typeof c[1] === 'number' && !isNaN(c[1]) && c[1] !== 0
+              );
+
             let hospIdx = 0;
             const greenShades = ['#00e676', '#b2ff59', '#64dd17'];
             return emergencyRoutes?.map((route, idx) => {
               if (route.type && route.type !== 'hospital') return null;
-              
-              const destination = route.detour_path && route.detour_path.length > 0 ? route.detour_path[route.detour_path.length - 1] : null;
+
+              const cleanPath = sanitizePath(route.detour_path);
+              if (cleanPath.length < 2) return null;
+
+              const destination = cleanPath[cleanPath.length - 1];
+              const isValidDest = destination && !isNaN(destination[0]) && !isNaN(destination[1]);
               const showDetour = overlayVisibility ? (overlayVisibility[`em-detour-${idx}`] ?? true) : true;
               const color = greenShades[hospIdx % greenShades.length];
               hospIdx++;
@@ -455,15 +488,15 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
                 <React.Fragment key={`emergency-${idx}`}>
                   {showDetour && (
                     <Polyline
-                      positions={route.detour_path}
+                      positions={cleanPath}
                       pathOptions={{ color: color, weight: 3.5, opacity: 0.9 }}
                     >
                       <LeafletTooltip>Emergency Route ({route.name})</LeafletTooltip>
                     </Polyline>
                   )}
-                {destination && (
-                  <CircleMarker 
-                    center={destination} 
+                {isValidDest && (
+                  <CircleMarker
+                    center={destination}
                     radius={6}
                     pathOptions={{ color: '#111', fillColor: color, fillOpacity: 1, weight: 2 }}
                   >
@@ -473,8 +506,8 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
                   </CircleMarker>
                 )}
               </React.Fragment>
-            );
-          });
+              );
+            });
           })()}
         </>
       )}

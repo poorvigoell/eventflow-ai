@@ -27,7 +27,10 @@ echo "Installing requirements (this may take a few minutes for ML libraries)..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# 4. Retrain Causal Model to prevent 'Pickle / _loss' errors across environments
+# 4. Generate Causal CSV and Retrain Causal Model
+echo "Generating synthetic causal dataset locally..."
+python scripts/augment_causal_data.py
+
 echo "Retraining Causal Model to sync with local scikit-learn version..."
 python models/causal_engine.py
 
