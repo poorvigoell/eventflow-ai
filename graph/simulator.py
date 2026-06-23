@@ -2,6 +2,9 @@ import networkx as nx
 import random
 import osmnx as ox
 
+_CRITICAL_ROADS_CACHE = {}
+_EMERGENCY_ROUTES_CACHE = {}
+
 def simulate_road_closure(G, edge_to_close, num_samples=50, seed=42):
     """
     Simulates the impact of closing a road (edge) on the given networkx graph G.
@@ -324,6 +327,10 @@ def get_critical_roads(G, lat, lng, radius=1000):
     Day 5: Cascading Failure Detector.
     Finds critical roads around the venue using edge betweenness centrality.
     """
+    grid_key = (round(lat, 3), round(lng, 3), radius)
+    if grid_key in _CRITICAL_ROADS_CACHE:
+        return _CRITICAL_ROADS_CACHE[grid_key]
+        
     try:
         center_node = find_nearest_node(G, lat, lng)
         # Create a small subgraph for fast computation (within ~1.5km walking distance)
@@ -372,6 +379,8 @@ def get_critical_roads(G, lat, lng, radius=1000):
             })
             if len(critical_paths) >= 5:
                 break
+        
+        _CRITICAL_ROADS_CACHE[grid_key] = critical_paths
         return critical_paths
     except Exception as e:
         print(f"Error calculating critical roads: {e}")
@@ -382,6 +391,11 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
     Day 6: Emergency Routing.
     Finds primary routes to mock hospitals and dynamic detours that avoid specified blockade edges.
     """
+    blockade_key = tuple(sorted((u, v) for u, v in blockade_edges)) if blockade_edges else None
+    grid_key = (round(lat, 3), round(lng, 3), blockade_key)
+    if grid_key in _EMERGENCY_ROUTES_CACHE:
+        return _EMERGENCY_ROUTES_CACHE[grid_key]
+        
     try:
         center_node = find_nearest_node(G, lat, lng)
         nodes = list(G.nodes())
@@ -506,6 +520,7 @@ def get_emergency_routes(G, lat, lng, blockade_edges=None):
             except nx.NetworkXNoPath:
                 continue
                 
+        _EMERGENCY_ROUTES_CACHE[grid_key] = routes
         return routes
     except Exception as e:
         print(f"Error calculating emergency routes: {e}")

@@ -214,7 +214,7 @@ function App() {
         weather_rain: rain,
         multi_event_mode: multiEvent,
         emergency_mode: emergency
-      }, { timeout: 60000 })
+      }, { timeout: 300000 })
       console.log("Prediction response received", response.data);
       setData(response.data)
     } catch (error) {

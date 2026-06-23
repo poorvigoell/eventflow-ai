@@ -381,17 +381,22 @@ export const SignalsTab = ({ signals, eventConfig }) => {
         <div className="space-y-6 animate-fade-in">
           <div className="bg-[var(--color-surface-hover)] border-l-4 border-[var(--color-accent)] p-4 rounded-lg shadow-xl flex justify-between items-center">
             <div>
-              <h5 className="text-[var(--color-accent)] font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
-                <Network size={14} /> {!marlSession ? 'Adaptive MARL (Multi-Agent Reinforcement Learning) Agent' : engineType === 'MARL Cooperative' ? 'Adaptive MARL (Multi-Agent Reinforcement Learning) Agent' : 'Adaptive Single-Agent RL Controller'}
+              <h5 className={`text-[var(--color-accent)] font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${!marlSession ? 'text-lg' : 'text-xs'}`}>
+                <Network size={!marlSession ? 20 : 14} /> {!marlSession ? 'Adaptive MARL (Multi-Agent Reinforcement Learning) Agent' : engineType === 'MARL Cooperative' ? 'Adaptive MARL (Multi-Agent Reinforcement Learning) Agent' : 'Adaptive Single-Agent RL Controller'}
               </h5>
-              <p className="text-sm text-[var(--color-text-main)] max-w-2xl mt-1">
-                {!marlSession ?
-                  "Dynamic traffic signal optimization mapped over a multi-agent network representation." :
-                  engineType === 'MARL Cooperative' ?
-                    "The AI Coordinator detected a high-complexity scenario and deployed the Multi-Agent Cooperative Network to manage cascading gridlock through distributed message-passing." :
-                    "The AI Coordinator evaluated this scenario as localized congestion and has deployed the high-speed Single-Agent RL model for focused, efficient traffic signal optimization."
-                }
-              </p>
+              {marlSession && (
+                <div className="flex items-center gap-3 mt-2">
+                  <p className="text-base text-fuchsia-400 max-w-2xl font-bold">
+                    {engineType === 'MARL Cooperative' ?
+                      "High complexity detected: used MARL agent." :
+                      "Low complexity detected: used RL agent."
+                    }
+                  </p>
+                  <div className="bg-fuchsia-600 text-white border border-fuchsia-400 px-3 py-1 rounded font-black text-xs tracking-widest shadow-[0_0_10px_rgba(217,70,239,0.5)]">
+                    {engineType === 'MARL Cooperative' ? 'MARL' : 'RL'}
+                  </div>
+                </div>
+              )}
             </div>
 
             {!marlSession ? (

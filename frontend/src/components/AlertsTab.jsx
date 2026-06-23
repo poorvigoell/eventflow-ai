@@ -111,7 +111,7 @@ export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat
         weather_rain: false,
         multi_event_mode: false,
         emergency_mode: anomaly.emergency_vehicle_stuck || anomaly.accident_reported
-      }, { timeout: 60000 });
+      }, { timeout: 300000 });
       setLocalData(response.data);
       
       // Update global context so other tabs (Tactical, Signals, Dispersal) get this data

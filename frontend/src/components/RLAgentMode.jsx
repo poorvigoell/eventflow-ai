@@ -20,10 +20,19 @@ export function RLAgentMode({ session, metrics, isStepping, isStarting, onStart,
     <div className="space-y-6 animate-fade-in">
       <div className="bg-[var(--color-surface-hover)] border-l-4 border-[var(--color-accent)] p-4 rounded-lg shadow-xl flex justify-between items-center">
         <div>
-          <h5 className="text-[var(--color-accent)] font-bold uppercase tracking-wider text-xs mb-1 flex items-center gap-2">
-            <Activity size={14}/> Live RL Operator
+          <h5 className={`text-[var(--color-accent)] font-bold uppercase tracking-wider mb-1 flex items-center gap-2 ${!session ? 'text-lg' : 'text-xs'}`}>
+            <Activity size={!session ? 20 : 14}/> Live RL Operator
           </h5>
-          <p className="text-sm text-[var(--color-text-main)]">The RL Agent is actively monitoring simulated queues and adjusting green splits in real-time.</p>
+          {session && (
+            <div className="flex items-center gap-3 mt-2">
+              <p className="text-base text-fuchsia-400 max-w-2xl font-bold">
+                Low complexity detected: used RL agent.
+              </p>
+              <div className="bg-fuchsia-600 text-white border border-fuchsia-400 px-3 py-1 rounded font-black text-xs tracking-widest shadow-[0_0_10px_rgba(217,70,239,0.5)]">
+                RL
+              </div>
+            </div>
+          )}
         </div>
         
         {!session ? (
