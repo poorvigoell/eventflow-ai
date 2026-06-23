@@ -235,7 +235,7 @@ function OverlayController({ overlayItemsRef }) {
   return null;
 }
 
-export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLocation, locationName, setLocationName, predictionData, criticalRoads, emergencyRoutes, initialMapData, targetBoundary, setTargetBoundary }) {
+export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLocation, locationName, setLocationName, predictionData, criticalRoads, emergencyRoutes, initialMapData, targetBoundary, setTargetBoundary, isActive = true }) {
 
   const [externalTraffic, setExternalTraffic] = React.useState(null);
   const [roadZoom, setRoadZoom] = useState(14);
@@ -248,6 +248,7 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
   // Emit overlay state for dynamic legend (includes positions for focus)
   useEffect(() => {
     const emit = () => {
+      if (!isActive) return;
       const items = [];
       if (showPin) items.push({ id: 'pin', label: 'Selected Pin', type: 'marker', color: 'var(--color-accent)', visible: overlayVisibility['pin'] ?? true, positions: [[lat, lng]] });
 
@@ -318,7 +319,7 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
     };
 
     emit();
-  }, [externalTraffic, criticalRoads, emergencyRoutes, showPin, overlayVisibility, lat, lng]);
+  }, [externalTraffic, criticalRoads, emergencyRoutes, showPin, overlayVisibility, lat, lng, isActive]);
 
   // Listen for visibility changes from Legend
   useEffect(() => {
@@ -330,11 +331,16 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
     window.addEventListener('overlayVisibilityChange', handler);
     // respond to requests for current overlay state
     const reqHandler = () => {
-      window.dispatchEvent(new CustomEvent('overlayStateUpdate', { detail: { items: overlayItemsRef.current || [] } }));
+      if (isActive) {
+        window.dispatchEvent(new CustomEvent('overlayStateUpdate', { detail: { items: overlayItemsRef.current || [] } }));
+      }
     };
     window.addEventListener('requestOverlayState', reqHandler);
-    return () => window.removeEventListener('overlayVisibilityChange', handler);
-  }, []);
+    return () => {
+      window.removeEventListener('overlayVisibilityChange', handler);
+      window.removeEventListener('requestOverlayState', reqHandler);
+    };
+  }, [isActive]);
 
   // Listen for external traffic payloads (dispatched by PredictionDashboard)
   useEffect(() => {

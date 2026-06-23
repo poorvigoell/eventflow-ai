@@ -384,9 +384,12 @@ function App() {
                 setGlobalData={setData}
                 setGlobalLat={setLat}
                 setGlobalLng={setLng}
+                setGlobalShowPin={setShowPin}
                 setGlobalEventType={setEventType}
                 setActiveAnalysisSource={setActiveAnalysisSource}
+                activeAnalysisSource={activeAnalysisSource}
                 handleTabChange={handleTabChange}
+                activeTab={activeTab}
               />
             )}
           </div>

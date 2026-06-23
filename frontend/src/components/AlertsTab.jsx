@@ -36,7 +36,7 @@ const InfoTooltip = ({ text, alignRight = false }) => (
   </div>
 );
 
-export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat, setGlobalLng, setGlobalShowPin, setGlobalEventType, setActiveAnalysisSource, activeAnalysisSource, handleTabChange }) => {
+export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat, setGlobalLng, setGlobalShowPin, setGlobalEventType, setActiveAnalysisSource, activeAnalysisSource, handleTabChange, activeTab }) => {
   const [internalLoading, setInternalLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
@@ -277,6 +277,7 @@ export const AlertsTab = ({ anomalies, setAnomalies, setGlobalData, setGlobalLat
               initialMapData={null}
               targetBoundary={null}
               setTargetBoundary={() => {}}
+              isActive={activeTab === 'alerts'}
             />
           </div>
         </div>

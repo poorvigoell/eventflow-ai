@@ -451,6 +451,7 @@ export function PredictionDashboard({
             initialMapData={initialMapData}
             targetBoundary={targetBoundary}
             setTargetBoundary={setTargetBoundary}
+            isActive={activeTab === 'live'}
           />
         </div>
         <div className="mt-3 px-2">
