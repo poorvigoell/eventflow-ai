@@ -1,96 +1,148 @@
-# EventFlow
+# EventFlow — AI-Powered Urban Traffic Management
 
-EventFlow is an advanced,  traffic prediction and simulation dashboard designed to forecast and mitigate urban congestion caused by major public events. It uses machine learning to predict traffic buildup, simulates real-time traffic anomalies, and generates tactical dispatch plans for city management and law enforcement.
+EventFlow is a full-stack, AI-powered urban traffic prediction and management platform built for Bengaluru, India. It enables traffic police, city administrators, and event organisers to **forecast the traffic impact of large public events before they happen**, and then manage resulting congestion through intelligent signal optimization, tactical resource dispatch, crowd dispersal simulation, and post-event causal learning.
 
 ## Key Features
 
-*   **Predictive Analytics:** Uses an XGBoost model to predict total traffic incidents, phase timelines (inflow, steady, exodus), and peak congestion hours based on event type, duration, location, and weather.
-*   **Live Traffic Dashboard:** An interactive map overlay using Leaflet and TomTom API to visualize live traffic flows, high-risk junctions, and dynamically generated road congestion.
-*   **Tactical Response Planning:** Automatically generates resource dispatch recommendations (police, ambulances, tow trucks) and computes the economic impact of gridlocks.
-*   **Signal Optimization (Digital Twin):** Simulates a Reinforcement Learning (RL) agent that monitors queue lengths and dynamically adjusts green-light splits to alleviate traffic bottlenecks.
-*   **Real-time Anomaly Injection:** Simulate traffic chaos (accidents, emergency vehicles stuck) and broadcast alerts to the frontend via WebSockets in real-time.
-*   **Crowd Dispersal Mapping:** Visualizes how crowds and traffic will organically disperse into the city grid post-event.
+### Predictive Analytics
+- **XGBoost 3-Phase Prediction** trained on real anonymised Bengaluru event-incident data
+- Decomposes predictions into **Inflow → Steady → Exodus** phases with per-phase peak hours
+- 12 engineered features including cyclical time encoding (`hour_sin`, `hour_cos`), rush-hour flag, and weekend flag
+- Confidence score and feature importance displayed per prediction
+
+### Live Traffic Dashboard
+- Interactive **Leaflet map** with dark CartoDB tiles and event venue pin
+- **TomTom Live Traffic overlay** — fetches real-time speed and congestion for the 5 nearest arterial roads, rendered as colour-coded dashed polylines (free / moderate / congested)
+- **30-minute client-side cache** for all live traffic and prediction data — survives page reloads without redundant API calls
+- **Emergency Hospital Route Toggle** — show/hide NHS hospital routing overlays on the live map
+
+### Tactical Response Planning
+- Automated manpower deployment planner using **OSMnx edge betweenness centrality** to identify the top 5 critical junctions
+- Auto-computes exact counts of police, patrol vehicles, ambulances, tow trucks, and barricade teams scaled to predicted severity
+- Barricade protocol with timed deployment orders
+- Diversion routing via **penalised Dijkstra** (8× travel time on high-risk edges)
+
+### Adaptive Signal Control
+- **Webster Formula baseline** — computes optimal static green splits using `g_i = (y_i / Y) × (C - L)` for all predicted high-risk junctions
+- **Adaptive AI Engine** — automatically selects the best controller for each scenario:
+  - **Single-Agent RL (PPO)** for localised, single-junction congestion — fast, focused signal adjustment
+  - **MARL Cooperative Network** for multi-junction cascading gridlock — 5 independent agents communicate via message-passing to coordinate across the road network
+- Real-time **Agent Communication Network** graph visualisation with live queue pressure rings
+- Per-agent junction cards showing green time, queue length, and adjustment delta
+
+### Post-Event Causal Autopsy
+- **Do-Calculus T-Learner** (Microsoft EconML) computes the **Individual Treatment Effect (ITE)** of each tactical deployment
+- Isolates exactly how many minutes barricades and diversions saved (or cost), controlling for confounders: event priority, event type, time of day, and location
+- Trained on synthetically augmented causal dataset generated from the same real Bengaluru data — capped to realistic clearance times to prevent extreme predictions
+- Works on both resolved live anomalies and historical mock events
+
+### Crowd Dispersal Simulation
+- Monte Carlo heatmap snapshots at 5-minute intervals post-event
+- Timeline scrubber to watch crowd density decay toward metro stations, bus stops, and parking facilities
+- Economic segment analysis and transport mode split (metro vs. cab)
+
+### Real-Time Anomaly Alerts
+- WebSocket broadcast of live traffic anomalies to all connected clients simultaneously
+- **Simulate Chaos** button — inject random accidents and emergency events in real-time
+- Emergency ETA calculations for ambulances, fire trucks, and police based on jam factors
+- Graph-based emergency routing via OSMnx from nearest hospital/station to venue
+
+### AI Operator (Natural Language)
+- Groq-powered LLM agent (LLaMA 3.3 70B) with tool-calling: geocode, analyse event, trigger anomaly
+- Streams results via Server-Sent Events (SSE) — the map, KPIs, and prediction data update live as the AI executes
+- Multi-turn conversation with full history tracking
+
+### Digital Twin
+- Side-by-side ML Predicted vs. Ground Truth map comparison
+- Assesses historical model accuracy on resolved incidents
+
+---
 
 ## Technology Stack
 
-**Frontend:**
-*   React (Vite)
-*   Tailwind CSS (Styling)
-*   React-Leaflet (Map Integration)
-*   Recharts (Data Visualization)
-*   Lucide React (Icons)
+| Layer | Technology |
+|---|---|
+| Frontend | React 18 + Vite |
+| Maps | React-Leaflet + CartoDB Dark Tiles |
+| Charts | Recharts |
+| Backend | FastAPI + Uvicorn (Python) |
+| ML — Prediction | XGBoost / GradientBoostingRegressor |
+| ML — Causal Inference | Custom T-Learner (GradientBoostingRegressor) |
+| RL — Single Agent | Stable-Baselines3 PPO + Gymnasium |
+| RL — MARL | Custom multi-agent PPO with message-passing |
+| Graph Engine | OSMnx + NetworkX |
+| Live Traffic | TomTom Traffic Flow API |
+| LLM | Groq Cloud (LLaMA 3.3 70B) |
+| Real-Time | WebSockets |
 
-**Backend:**
-*   Python (FastAPI)
-*   Uvicorn (Asynchronous ASGI server)
-*   XGBoost & Scikit-learn (Machine Learning)
-*   OSMnx & NetworkX (Graph/Spatial Data)
-*   WebSockets (Live Alerts)
+---
 
 ## Getting Started
 
 ### Prerequisites
-Make sure you have Node.js and **Python 3.11 or 3.12** installed. 
+Make sure you have **Node.js** and **Python 3.11 or 3.12** installed.
+
 > [!WARNING]
-> Do NOT use Python 3.13. The Reinforcement Learning libraries (`stable-baselines3`, `PyTorch`) currently do not have pre-built wheels for Python 3.13 and will fail to install.
+> Do **NOT** use Python 3.13. The Reinforcement Learning libraries (`stable-baselines3`, `PyTorch`) currently do not have pre-built wheels for Python 3.13 and will fail to install.
 
 ### 1. Automated Backend Setup (Recommended)
-To prevent "Pickle" mismatch errors and guarantee Python version compatibility, the easiest way to start is using our automated setup script. This script will automatically create a virtual environment, install the ML libraries, dynamically generate the randomized CSV dataset, and re-train the predictive models natively so they perfectly match your computer's environment.
 
-**If you are on Windows:**
-1. Open your terminal or Command Prompt and navigate to the root directory.
-2. Run the automated setup script:
-   ```cmd
-   .\setup.bat
-   ```
-3. Once complete, start the backend server from Command Prompt:
-   ```cmd
-   call .venv\Scripts\activate.bat
-   set OMP_NUM_THREADS=1
-   python -m uvicorn api.main:app --reload --port 8000
-   ```
+The setup scripts handle everything automatically: create a virtual environment, install all ML libraries, generate the local causal training dataset, and retrain all models natively so they match your exact environment (preventing pickle/numpy version mismatch errors).
 
-**If you are on Mac/Linux:**
-1. Open your terminal and navigate to the root directory.
-2. Run the automated setup script:
-   ```bash
-   bash setup.sh
-   ```
-3. Once complete, start the backend server:
-   ```bash
-   source .venv/bin/activate
-   OMP_NUM_THREADS=1 python -m uvicorn api.main:app --reload --port 8000
-   ```
-   *(Note: `OMP_NUM_THREADS=1` is required to prevent PyTorch deadlocks on macOS).*
+**Windows:**
+```cmd
+.\setup.bat
+```
+Once complete, start the backend:
+```cmd
+call venv\Scripts\activate.bat
+set OMP_NUM_THREADS=1
+python -m uvicorn api.main:app --reload --port 8000
+```
+
+**macOS / Linux:**
+```bash
+bash setup.sh
+```
+Once complete, start the backend:
+```bash
+source .venv/bin/activate
+OMP_NUM_THREADS=1 python -m uvicorn api.main:app --reload --port 8000
+```
+> `OMP_NUM_THREADS=1` is required to prevent PyTorch deadlocks on macOS.
 
 ### 2. Frontend Setup
-1. Open a new terminal and navigate to the `frontend` directory:
-   ```bash
-   cd frontend
-   ```
-2. Install the Node modules:
-   ```bash
-   npm install
-   ```
-3. Start the Vite development server:
-   ```bash
-   npm run dev
-   ```
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 ### 3. Environment Variables
-If you intend to use live TomTom traffic data, you will need to add a `.env` file in the root directory containing your API key:
+Create a `.env` file in the project root:
 ```env
 TOMTOM_API_KEY=your_tomtom_api_key_here
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
+---
+
 ## How to Use
-1. Open the frontend URL provided by Vite (usually `http://localhost:5173`).
-2. **Drop a Pin**: Click anywhere on the map to select an event location.
-3. **Configure Event**: Set the event type, duration, weather conditions, etc., in the left sidebar.
-4. **Predict**: Click "Run Predictive Analysis" to generate the data.
-5. **Explore Tabs**: Navigate through the Live Dashboard, Tactical Plan, Signals, and Digital Twin tabs to explore the AI's recommendations.
-6. **Simulate Chaos**: Go to the "Live Alerts" tab and click "Simulate Chaos" to inject random traffic anomalies into the dashboard in real-time!
+
+1. **Open** `http://localhost:5173` in your browser.
+2. **Drop a Pin** — click anywhere on the map to select an event location.
+3. **Configure Event** — set event type, duration, weather, and priority in the left sidebar.
+4. **Predict** — click "Run Predictive Analysis" to generate the full ML prediction.
+5. **Explore Tabs:**
+   - **Live Dashboard** — interactive map with TomTom live traffic, KPI cards, and AI Operator chat
+   - **Tactical Plan** — auto-generated manpower deployment, barricade protocol, and diversion routes
+   - **Signals** — Webster baseline or deploy the Adaptive AI Agent (RL/MARL auto-selected)
+   - **Crowd Dispersal** — heatmap timeline of post-event crowd movement
+   - **Digital Twin** — predicted vs. actual ground truth map comparison
+   - **Live Alerts** — real-time WebSocket anomaly feed; click "Simulate Chaos" to inject events
+   - **Causal Autopsy** — run post-event ITE analysis on resolved incidents
+
+---
 
 ## License
-This project is for demonstration and portfolio purposes.
+This project is for demonstration and academic purposes.
