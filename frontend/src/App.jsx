@@ -272,8 +272,8 @@ function App() {
 
       {/* Global Toast Notification */}
       {toast && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500/90 border border-red-500 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 fade-in duration-300">
-          <AlertTriangle size={20} />
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-[999999] bg-red-500/90 border border-red-500 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-4 fade-in duration-300 max-w-[90vw] text-center whitespace-normal">
+          <AlertTriangle size={20} className="shrink-0" />
           <span className="font-bold">{toast}</span>
         </div>
       )}
