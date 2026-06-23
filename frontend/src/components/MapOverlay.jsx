@@ -570,5 +570,3 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
     </div>
   );
 }
-  );
-}
