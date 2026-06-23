@@ -93,7 +93,7 @@ function FilteredTrafficLayer() {
   const layerRef = useRef(null);
 
   useEffect(() => {
-    const tileUrl = 'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=ORWaElJompOORRkCLxk13gC3ZHZaKsWN&thickness=2';
+    const tileUrl = 'https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=bG0D5ltXo27Tvo8DM0OQv4MW2XzefpOz&thickness=2';
 
     const layer = L.GridLayer.extend({
       createTile: function(coords, done) {
@@ -405,7 +405,7 @@ export default function MapOverlay({ lat, lng, showPin, isLiveTrafficMode, setLo
         {isLiveTrafficMode && (
           predictionData ? <FilteredTrafficLayer /> : (
             <TileLayer
-              url="https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=ORWaElJompOORRkCLxk13gC3ZHZaKsWN"
+              url="https://api.tomtom.com/traffic/map/4/tile/flow/relative0/{z}/{x}/{y}.png?key=bG0D5ltXo27Tvo8DM0OQv4MW2XzefpOz"
               attribution='&copy; TomTom Traffic'
               opacity={0.8}
               bounds={BENGALURU_BOUNDS}
